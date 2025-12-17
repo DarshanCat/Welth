@@ -1,1 +1,15 @@
 # Welth
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+CLERK_SECRET_KEY
+
+# Connect to Supabase via connection pooling
+DATABASE_URL
+
+# Direct connection to the database. Used for migrations
+DIRECT_URL
+
+ARCJET_KEY
+
+RESEND_API_KEY
+
+GEMINI_API_KEY
