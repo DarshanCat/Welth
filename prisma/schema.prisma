@@ -10,15 +10,18 @@ datasource db {
 
 model User {
   id            String    @id @default(uuid())
-  clerkUserId   String    @unique // clerk user id
+  clerkUserId   String    @unique
   email         String    @unique
-  name          String?   // Optional: may be null if the user has not provided a name
+  name          String?
   imageUrl      String?
+
   transactions  Transaction[]
   accounts      Account[]
   budgets       Budget[]
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  goals         Goal[]     // ✅ ADD THIS
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@map("users")
 }
@@ -77,6 +80,22 @@ model Budget {
   @@index([userId])
   @@map("budgets")
 }
+
+model Goal {
+  id            String   @id @default(uuid())
+  targetAmount  Decimal
+  months        Int
+  monthlySave   Decimal
+  lastAlertSent DateTime?
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("goals")
+}
+
+
 
 enum TransactionType {
   INCOME

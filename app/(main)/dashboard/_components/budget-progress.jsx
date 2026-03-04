@@ -17,6 +17,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { updateBudget } from "@/actions/budget";
 
+/* ✅ INR formatter */
+const formatINR = (amount) =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 2,
+  }).format(amount);
+
 export function BudgetProgress({ initialBudget, currentExpenses }) {
   const [isEditing, setIsEditing] = useState(false);
   const [newBudget, setNewBudget] = useState(
@@ -70,6 +78,7 @@ export function BudgetProgress({ initialBudget, currentExpenses }) {
           <CardTitle className="text-sm font-medium">
             Monthly Budget (Default Account)
           </CardTitle>
+
           <div className="flex items-center gap-2 mt-1">
             {isEditing ? (
               <div className="flex items-center gap-2">
@@ -103,9 +112,9 @@ export function BudgetProgress({ initialBudget, currentExpenses }) {
               <>
                 <CardDescription>
                   {initialBudget
-                    ? `$${currentExpenses.toFixed(
-                        2
-                      )} of $${initialBudget.amount.toFixed(2)} spent`
+                    ? `${formatINR(currentExpenses)} of ${formatINR(
+                        initialBudget.amount
+                      )} spent`
                     : "No budget set"}
                 </CardDescription>
                 <Button
@@ -121,19 +130,19 @@ export function BudgetProgress({ initialBudget, currentExpenses }) {
           </div>
         </div>
       </CardHeader>
+
       <CardContent>
         {initialBudget && (
           <div className="space-y-2">
             <Progress
               value={percentUsed}
-              extraStyles={`${
-                // add to Progress component
+              extraStyles={
                 percentUsed >= 90
                   ? "bg-red-500"
                   : percentUsed >= 75
-                    ? "bg-yellow-500"
-                    : "bg-green-500"
-              }`}
+                  ? "bg-yellow-500"
+                  : "bg-green-500"
+              }
             />
             <p className="text-xs text-muted-foreground text-right">
               {percentUsed.toFixed(1)}% used
