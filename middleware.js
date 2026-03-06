@@ -1,32 +1,13 @@
-import arcjet, { createMiddleware, detectBot, shield } from "@arcjet/next";
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
-// Protect these routes
 const isProtectedRoute = createRouteMatcher([
   "/dashboard(.*)",
   "/account(.*)",
   "/transaction(.*)",
 ]);
 
-// Arcjet middleware
-const aj = arcjet({
-  key: process.env.ARCJET_KEY,
-  rules: [
-    shield({
-      mode: "DRY_RUN", // change to "LIVE" in production
-    }),
-    detectBot({
-      mode: "DRY_RUN", // logs only
-      allow: [
-        "CATEGORY:SEARCH_ENGINE", // Google, Bing, etc.
-        "GO_HTTP", // Inngest, webhooks
-      ],
-    }),
-  ],
-});
-
-// Clerk middleware
+// ── Clerk middleware ──────────────────────────────────────────────────────────
 const clerk = clerkMiddleware(async (auth, req) => {
   const { userId } = await auth();
 
@@ -38,18 +19,39 @@ const clerk = clerkMiddleware(async (auth, req) => {
   return NextResponse.next();
 });
 
-// Chain middlewares (Arcjet → Clerk)
-export default createMiddleware(aj, clerk);
+// ── Export ────────────────────────────────────────────────────────────────────
+// If ARCJET_KEY is set, wrap with Arcjet; otherwise use Clerk directly.
+// This prevents Arcjet from crashing the middleware when the key is absent.
+async function middleware(req, event) {
+  if (process.env.ARCJET_KEY) {
+    try {
+      const arcjet = await import("@arcjet/next");
+      const aj = arcjet.default({
+        key: process.env.ARCJET_KEY,
+        rules: [
+          arcjet.shield({ mode: "DRY_RUN" }),
+          arcjet.detectBot({
+            mode: "DRY_RUN",
+            allow: ["CATEGORY:SEARCH_ENGINE", "GO_HTTP"],
+          }),
+        ],
+      });
+      const ajMiddleware = arcjet.createMiddleware(aj, clerk);
+      return ajMiddleware(req, event);
+    } catch {
+      // Fall through to Clerk only if Arcjet fails
+    }
+  }
+  return clerk(req, event);
+}
 
-// IMPORTANT: Arcjet requires Node runtime
+export default middleware;
+
 export const runtime = "nodejs";
 
-// Middleware matcher config
 export const config = {
   matcher: [
-    // Skip static files & Next internals
     "/((?!_next/static|_next/image|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    // Always run for API routes
     "/(api|trpc)(.*)",
   ],
 };

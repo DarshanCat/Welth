@@ -15,6 +15,13 @@ const nextConfig = {
       bodySizeLimit: "5mb",
     },
   },
+
+  // Allow access from local network IPs during development
+  allowedDevOrigins: [
+    "192.168.56.1",
+    "192.168.1.*",
+    "localhost",
+  ],
 };
 
 export default nextConfig;

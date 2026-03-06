@@ -3,76 +3,140 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/prisma";
 import Groq from "groq-sdk";
 
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-/* =========================
-   HELPERS
-========================= */
+// ── All supported categories ──────────────────────────────────────────────────
+const EXPENSE_CATEGORIES = [
+  "Housing", "Transportation", "Groceries", "Utilities", "Entertainment",
+  "Food", "Shopping", "Healthcare", "Education", "Personal Care",
+  "Travel", "Insurance", "Gifts & Donations", "Bills & Fees", "Other Expenses",
+];
+const INCOME_CATEGORIES = [
+  "Salary", "Freelance", "Investments", "Business", "Rental", "Other Income",
+];
 
-// 🎯 Extract savings goal
-function extractGoal(message) {
-  const amountMatch = message.match(/₹?\s?(\d{4,})/);
-  const monthsMatch = message.match(/(\d+)\s?(month|months)/i);
+// ── Step 1: Use LLM to detect intent + extract entities ──────────────────────
+async function parseIntent(message) {
+  const today = new Date().toISOString().split("T")[0];
 
-  if (!amountMatch || !monthsMatch) return null;
+  const prompt = `You are a financial assistant that parses natural language messages.
+Today's date is ${today}.
 
-  const targetAmount = Number(amountMatch[1]);
-  const months = Number(monthsMatch[1]);
+Given this message: "${message}"
 
-  return {
-    targetAmount,
-    months,
-    monthlySave: targetAmount / months,
-  };
+Respond with ONLY a JSON object (no markdown, no explanation) in one of these formats:
+
+1. If the user wants to ADD a transaction (any phrasing like "spent", "paid", "bought", "add", "received", "got", "earned", "income"):
+{
+  "intent": "add_transaction",
+  "type": "EXPENSE" or "INCOME",
+  "amount": <number>,
+  "category": <one of: ${[...EXPENSE_CATEGORIES, ...INCOME_CATEGORIES].join(", ")}>,
+  "description": <short description>,
+  "date": "<YYYY-MM-DD>"
 }
 
-// ✍️ Extract income / expense
-function extractTransaction(message) {
-  const amountMatch = message.match(/₹?\s?(\d+)/);
-  if (!amountMatch) return null;
-
-  const amount = Number(amountMatch[1]);
-  const text = message.toLowerCase();
-
-  // Detect type
-  const type = text.includes("income") ? "INCOME" : "EXPENSE";
-
-  // Detect category
-  let category = "Other";
-
-  if (type === "INCOME") {
-    if (text.includes("salary")) category = "Salary";
-    else if (text.includes("freelance")) category = "Freelance";
-    else category = "Income";
-  } else {
-    if (text.includes("food") || text.includes("lunch") || text.includes("dinner"))
-      category = "Food";
-    else if (text.includes("travel") || text.includes("bus") || text.includes("uber"))
-      category = "Travel";
-    else if (text.includes("shopping"))
-      category = "Shopping";
-    else if (text.includes("grocery"))
-      category = "Groceries";
-  }
-
-  // Detect date
-  let date = new Date();
-  if (text.includes("yesterday")) {
-    date.setDate(date.getDate() - 1);
-  }
-
-  return { amount, category, date, type };
+2. If the user wants to create a SAVINGS GOAL:
+{
+  "intent": "add_goal",
+  "targetAmount": <number>,
+  "months": <number>
 }
 
-/* =========================
-   MAIN HANDLER
-========================= */
+3. If the user wants ANALYSIS or ADVICE:
+{
+  "intent": "analysis",
+  "query": "<cleaned user query>"
+}
 
+Rules:
+- For dates: "today"=${today}, "yesterday"=day before, "last monday"=most recent monday, etc.
+- Amount must be a plain number (no currency symbols)
+- Pick the CLOSEST matching category from the list
+- If amount is missing or unclear, set intent to "analysis"
+- ONLY respond with the JSON object, nothing else`;
+
+  const res = await groq.chat.completions.create({
+    model: "llama-3.1-8b-instant",
+    messages: [{ role: "user", content: prompt }],
+    temperature: 0.1,
+    max_tokens: 200,
+  });
+
+  const raw = res.choices[0]?.message?.content?.trim() || "{}";
+
+  // Strip any accidental markdown fences
+  const clean = raw.replace(/```json|```/g, "").trim();
+
+  try {
+    return JSON.parse(clean);
+  } catch {
+    return { intent: "analysis", query: message };
+  }
+}
+
+// ── Step 2: Financial advice via LLM ─────────────────────────────────────────
+async function getAdvice(query, user, db) {
+  const threeMonthsAgo = new Date();
+  threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+
+  const transactions = await db.transaction.findMany({
+    where: { userId: user.id, date: { gte: threeMonthsAgo } },
+  });
+
+  const income = transactions
+    .filter((t) => t.type === "INCOME")
+    .reduce((s, t) => s + Number(t.amount), 0);
+
+  const expense = transactions
+    .filter((t) => t.type === "EXPENSE")
+    .reduce((s, t) => s + Number(t.amount), 0);
+
+  const categoryMap = {};
+  transactions
+    .filter((t) => t.type === "EXPENSE")
+    .forEach((t) => {
+      categoryMap[t.category] = (categoryMap[t.category] || 0) + Number(t.amount);
+    });
+
+  const topCategories = Object.entries(categoryMap)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([cat, amt]) => `${cat}: ₹${amt.toFixed(0)}`)
+    .join(", ");
+
+  const context = `User Finance Summary (last 3 months):
+- Total Income: ₹${income.toFixed(0)}
+- Total Expenses: ₹${expense.toFixed(0)}
+- Net Savings: ₹${Math.max(0, income - expense).toFixed(0)}
+- Top expense categories: ${topCategories || "N/A"}
+
+User question: "${query}"
+
+Give concise, practical, personalised advice in 2-4 sentences. Use ₹ for currency. Be direct.`;
+
+  const res = await groq.chat.completions.create({
+    model: "llama-3.1-8b-instant",
+    messages: [
+      {
+        role: "system",
+        content: "You are a professional personal finance assistant. Be concise and practical.",
+      },
+      { role: "user", content: context },
+    ],
+    temperature: 0.4,
+    max_tokens: 300,
+  });
+
+  return (
+    res.choices[0]?.message?.content ||
+    "I couldn't generate advice right now. Please try again."
+  );
+}
+
+// ── Main handler ──────────────────────────────────────────────────────────────
 export async function POST(req) {
   try {
-    // 🔐 Auth
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json(
@@ -82,26 +146,23 @@ export async function POST(req) {
     }
 
     const { message } = await req.json();
-    const lowerMessage = message.toLowerCase();
-
-    // 👤 Find user
-    const user = await db.user.findUnique({
-      where: { clerkUserId: userId },
-    });
-
-    if (!user) {
-      return NextResponse.json({ reply: "User not found." });
+    if (!message?.trim()) {
+      return NextResponse.json({ reply: "Please enter a message." });
     }
 
-    /* =========================
-       ✍️ AUTO ADD (INCOME / EXPENSE)
-    ========================= */
-    if (lowerMessage.startsWith("add")) {
-      const tx = extractTransaction(message);
+    const user = await db.user.findUnique({ where: { clerkUserId: userId } });
+    if (!user) return NextResponse.json({ reply: "User not found." });
 
-      if (!tx) {
+    // ── Parse intent with LLM ────────────────────────────────────────────
+    const parsed = await parseIntent(message);
+
+    // ── Handle: Add Transaction ──────────────────────────────────────────
+    if (parsed.intent === "add_transaction") {
+      const { type, amount, category, description, date } = parsed;
+
+      if (!amount || amount <= 0) {
         return NextResponse.json({
-          reply: "Example: Add ₹200 lunch yesterday OR Add income ₹5000 salary",
+          reply: '❓ I couldn\'t find an amount. Try: "spent ₹500 on food today"',
         });
       }
 
@@ -111,136 +172,75 @@ export async function POST(req) {
 
       if (!account) {
         return NextResponse.json({
-          reply: "Please create a default account first.",
+          reply: "⚠️ Please create a default account first from your dashboard.",
         });
       }
 
-      await db.transaction.create({
+      const txDate = date ? new Date(date) : new Date();
+
+      const tx = await db.transaction.create({
         data: {
-          type: tx.type,
-          amount: tx.amount,
-          category: tx.category,
-          description: message.replace(/^add/i, "").trim() || tx.category,
-          date: tx.date,
+          type,
+          amount,
+          category: category || (type === "INCOME" ? "Other Income" : "Other Expenses"),
+          description: description || message,
+          date: txDate,
           userId: user.id,
           accountId: account.id,
+          status: "COMPLETED",
         },
       });
 
-      return NextResponse.json({
-        reply: `✅ ${tx.type === "INCOME" ? "Income" : "Expense"} Added Successfully!
+      const emoji = type === "INCOME" ? "💰" : "💸";
+      const formatted = new Intl.NumberFormat("en-IN", {
+        style: "currency",
+        currency: "INR",
+      }).format(amount);
 
-Amount: ₹${tx.amount}
-Category: ${tx.category}
-Date: ${tx.date.toDateString()}`,
+      return NextResponse.json({
+        reply: `${emoji} Transaction Added!\n\n• Amount: ${formatted}\n• Type: ${type === "INCOME" ? "Income" : "Expense"}\n• Category: ${tx.category}\n• Date: ${txDate.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}\n• Account: ${account.name}\n\nYour dashboard will update shortly.`,
+        action: "transaction_added",
       });
     }
 
-    /* =========================
-       🎯 GOALS HANDLING
-    ========================= */
-    if (lowerMessage.includes("save") && lowerMessage.includes("month")) {
-      const goal = extractGoal(message);
+    // ── Handle: Add Goal ────────────────────────────────────────────────
+    if (parsed.intent === "add_goal") {
+      const { targetAmount, months } = parsed;
 
-      if (!goal) {
+      if (!targetAmount || !months) {
         return NextResponse.json({
-          reply: "Example: Save ₹50000 in 6 months",
+          reply: '❓ Try: "Save ₹50000 in 6 months"',
         });
       }
+
+      const monthlySave = targetAmount / months;
 
       await db.goal.create({
         data: {
           userId: user.id,
-          targetAmount: goal.targetAmount,
-          months: goal.months,
-          monthlySave: goal.monthlySave,
+          targetAmount,
+          months,
+          monthlySave,
         },
       });
 
+      const fmt = (n) =>
+        new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(n);
+
       return NextResponse.json({
-        reply: `🎯 Savings Goal Created!
-
-Target: ₹${goal.targetAmount}
-Duration: ${goal.months} months
-Monthly Saving Needed: ₹${goal.monthlySave.toFixed(2)}
-
-Tip: Reduce food & shopping expenses to reach faster 💡`,
+        reply: `🎯 Savings Goal Created!\n\n• Target: ${fmt(targetAmount)}\n• Duration: ${months} months\n• Save monthly: ${fmt(monthlySave)}\n\nTip: Cut down on your top expense category to reach your goal faster! 💡`,
+        action: "goal_added",
       });
     }
 
-    /* =========================
-       📊 EXPENSE ANALYSIS + AI
-    ========================= */
+    // ── Handle: Analysis / Advice ────────────────────────────────────────
+    const advice = await getAdvice(parsed.query || message, user, db);
+    return NextResponse.json({ reply: advice });
 
-    const threeMonthsAgo = new Date();
-    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-
-    const transactions = await db.transaction.findMany({
-      where: {
-        userId: user.id,
-        date: { gte: threeMonthsAgo },
-        type: "EXPENSE",
-      },
-    });
-
-    if (transactions.length === 0) {
-      return NextResponse.json({
-        reply: "You don’t have enough expense data yet.",
-      });
-    }
-
-    const totalExpense = transactions.reduce(
-      (sum, t) => sum + Number(t.amount),
-      0
-    );
-
-    const categoryMap = {};
-    transactions.forEach((t) => {
-      categoryMap[t.category] =
-        (categoryMap[t.category] || 0) + Number(t.amount);
-    });
-
-    const topCategory = Object.entries(categoryMap).sort(
-      (a, b) => b[1] - a[1]
-    )[0];
-
-    const avgMonthlyExpense = totalExpense / 3;
-
-    const context = `
-User Finance Summary:
-- Total expense (last 3 months): ₹${totalExpense.toFixed(2)}
-- Average monthly expense: ₹${avgMonthlyExpense.toFixed(2)}
-- Top category: ${topCategory[0]} (₹${topCategory[1].toFixed(2)})
-
-User question:
-"${message}"
-
-Give clear, practical advice.
-Do NOT invent numbers.
-`;
-
-    const completion = await groq.chat.completions.create({
-      model: "llama-3.1-8b-instant",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a professional personal finance assistant. Be concise, practical, and accurate.",
-        },
-        { role: "user", content: context },
-      ],
-      temperature: 0.4,
-    });
-
-    return NextResponse.json({
-      reply:
-        completion.choices[0]?.message?.content ||
-        "I couldn’t generate a response right now.",
-    });
   } catch (error) {
-    console.error(error);
+    console.error("[Chat API Error]", error);
     return NextResponse.json(
-      { reply: "Server error. Please try again." },
+      { reply: "⚠️ Something went wrong. Please try again." },
       { status: 500 }
     );
   }

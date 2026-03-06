@@ -1,73 +1,57 @@
 import React from "react";
-import { Button } from "./ui/button";
 import { PenBox, LayoutDashboard } from "lucide-react";
 import Link from "next/link";
 import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
-import { checkUser } from "@/lib/checkUser";
-import Image from "next/image";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { ThemedLogo } from "@/components/themed-logo";
 
 const Header = async () => {
-  // await checkUser();
-
   return (
-    <header className="fixed top-0 w-full bg-white/80 backdrop-blur-md z-50 border-b">
-      <nav className="container mx-auto px-4 py-4 flex items-center justify-between">
-        <Link href="/">
-          <Image src="/logo.png"
-            alt="Welth Logo"
-            width={200}
-            height={60}
-            className="h-12 w-auto object-contain"
-          />
+    <header className="welth-header fixed top-0 w-full z-50">
+      <nav className="container mx-auto px-4 py-3 flex items-center justify-between">
+
+        {/* Logo */}
+        <Link href="/" className="flex items-center">
+          <ThemedLogo height={40} />
         </Link>
 
-        {/* Navigation Links - Different for signed in/out users */}
+        {/* Nav links */}
         <div className="hidden md:flex items-center space-x-8">
           <SignedOut>
-            <a href="#features" className="text-gray-600 hover:text-blue-600">
-              Features
-            </a>
-            <a
-              href="#testimonials"
-              className="text-gray-600 hover:text-blue-600"
-            >
-              Testimonials
-            </a>
+            <a href="#features" className="welth-nav-link text-sm font-medium">Features</a>
+            <a href="#testimonials" className="welth-nav-link text-sm font-medium">Testimonials</a>
           </SignedOut>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center space-x-4">
+        {/* Actions */}
+        <div className="flex items-center gap-3">
           <SignedIn>
-            <Link
-              href="/dashboard"
-              className="text-gray-600 hover:text-blue-600 flex items-center gap-2"
-            >
-              <Button variant="outline">
-                <LayoutDashboard size={18} />
-                <span className="hidden md:inline">Dashboard</span>
-              </Button>
+            <Link href="/dashboard">
+              <button className="welth-btn-ghost hidden md:flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium">
+                <LayoutDashboard size={15} />
+                Dashboard
+              </button>
             </Link>
             <a href="/transaction/create">
-              <Button className="flex items-center gap-2">
-                <PenBox size={18} />
+              <button className="welth-btn-primary flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold">
+                <PenBox size={15} />
                 <span className="hidden md:inline">Add Transaction</span>
-              </Button>
+              </button>
             </a>
           </SignedIn>
+
           <SignedOut>
             <SignInButton forceRedirectUrl="/dashboard">
-              <Button variant="outline">Login</Button>
+              <button className="welth-btn-primary px-5 py-2 rounded-lg text-sm font-semibold">
+                Login
+              </button>
             </SignInButton>
           </SignedOut>
+
+          <ThemeToggle />
+
           <SignedIn>
-            <UserButton
-              appearance={{
-                elements: {
-                  avatarBox: "w-10 h-10",
-                },
-              }}
-            />
+            <UserButton appearance={{ elements: { avatarBox: "w-9 h-9" } }} />
           </SignedIn>
         </div>
       </nav>

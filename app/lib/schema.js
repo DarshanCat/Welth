@@ -1,10 +1,15 @@
 import { z } from "zod";
+import { SUPPORTED_CURRENCIES, DEFAULT_CURRENCY } from "@/data/currencies";
+
+const currencyCodes = SUPPORTED_CURRENCIES.map((c) => c.code);
 
 export const accountSchema = z.object({
   name: z.string().min(1, "Name is required"),
   type: z.enum(["CURRENT", "SAVINGS"]),
   balance: z.string().min(1, "Initial balance is required"),
   isDefault: z.boolean().default(false),
+  // ── Multi-currency support ──────────────────────────────────────────────
+  currency: z.enum(currencyCodes).default(DEFAULT_CURRENCY),
 });
 
 export const transactionSchema = z
