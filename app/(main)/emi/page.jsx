@@ -546,7 +546,7 @@ export default function EmiPage() {
             <div style={{ textAlign: "center", padding: "3rem 1rem", background: "rgba(255,255,255,.02)", border: "1px solid rgba(255,255,255,.07)", borderRadius: 18 }}>
               <Calculator size={36} style={{ color: "#475569", margin: "0 auto 12px", display: "block" }} />
               <p style={{ color: "#64748b", margin: 0, fontSize: ".9rem" }}>No loans tracked yet.</p>
-              <p style={{ color: "#475569", margin: "6px 0 0", fontSize: ".78rem" }}>Add a loan to track EMIs, see what's paid, and never miss a payment.</p>
+              <p style={{ color: "#475569", margin: "6px 0 0", fontSize: ".78rem" }}>Add a loan to track EMIs, see what&apos;s paid, and never miss a payment.</p>
               <button onClick={() => setShowForm(true)}
                 style={{ marginTop: 14, padding: "9px 20px", borderRadius: 9999, background: "rgba(96,165,250,.15)", border: "1px solid rgba(96,165,250,.35)", color: "#60a5fa", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
                 + Add Your First Loan

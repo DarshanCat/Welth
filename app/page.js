@@ -358,7 +358,7 @@ const LandingPage = () => {
             className="mb-10 max-w-xl mx-auto leading-relaxed"
             style={{ color: "#64748b", fontSize: "1.05rem" }}
           >
-            Join users who are already managing their money smarter with Welth's
+            Join users who are already managing their money smarter with Welth&apos;s
             AI-powered insights and automation.
           </p>
 
