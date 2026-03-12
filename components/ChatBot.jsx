@@ -185,7 +185,7 @@ export default function ChatBot() {
         body: JSON.stringify({ message: trimmed, mode }),
       });
       const data = await res.json();
-      const msg  = { role: "bot", type: data.type || "text", text: data.reply, action: data.action, data: data.data };
+      const msg  = { role: "bot", type: data.type || "text", text: data.reply || data.text, action: data.action, data: data.data };
       if (!isWrite) responseCache.set(cacheKey, msg);
       setMessages(p => [...p, msg]);
     } catch {

@@ -1,6 +1,6 @@
 import React from "react";
 import { Button } from "./ui/button";
-import { PenBox, LayoutDashboard, Briefcase, Calculator, TrendingUp } from "lucide-react";
+import { PenBox, LayoutDashboard, Briefcase, Calculator, TrendingUp, Brain } from "lucide-react";
 import Link from "next/link";
 import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
 import { checkUser } from "@/lib/checkUser";
@@ -34,6 +34,22 @@ const Header = async () => {
               }}>
                 <Calculator size={14} />
                 EMI
+              </button>
+            </Link>
+
+            {/* ── Predictions button ── */}
+            <Link href="/predictions">
+              <button style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "7px 14px", borderRadius: 9999,
+                background: "linear-gradient(135deg,rgba(167,139,250,0.18),rgba(139,92,246,0.1))",
+                border: "1px solid rgba(167,139,250,0.45)",
+                color: "#a78bfa", fontSize: ".8rem", fontWeight: 700,
+                cursor: "pointer", fontFamily: "'Sora',sans-serif",
+                boxShadow: "0 0 14px rgba(167,139,250,0.15)",
+              }}>
+                <Brain size={14} />
+                Predict
               </button>
             </Link>
 
