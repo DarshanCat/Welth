@@ -37,35 +37,14 @@ export function AddTransactionForm({
   editMode = false,
   initialData = null,
 }) {
+
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams?.get("edit");
 
-  // ── AI Auto-Categorize ────────────────────────────────────────────────────
   const [aiCatLoading, setAiCatLoading] = useState(false);
   const [aiCatSuggestion, setAiCatSuggestion] = useState(null);
   const debounceRef = useRef(null);
-
-  const description = watch("description");
-  const amount      = watch("amount");
-  const type        = watch("type");
-
-  useEffect(() => {
-    if (!description || description.length < 4) { setAiCatSuggestion(null); return; }
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
-      setAiCatLoading(true);
-      try {
-        const res = await fetch("/api/ai/categorize", {
-          method:  "POST",
-          headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ description, amount, type }),
-        });
-        const data = await res.json();
-        if (data.category) setAiCatSuggestion(data);
-      } catch { /* silent */ } finally { setAiCatLoading(false); }
-    }, 800);
-  }, [description, amount, type]);
 
   const {
     register,
@@ -101,6 +80,51 @@ export function AddTransactionForm({
           },
   });
 
+  // watch values AFTER useForm
+  const description = watch("description");
+  const amount = watch("amount");
+  const type = watch("type");
+  const isRecurring = watch("isRecurring");
+  const date = watch("date");
+
+  // AI category suggestion
+  useEffect(() => {
+
+    if (!description || description.length < 4) {
+      setAiCatSuggestion(null);
+      return;
+    }
+
+    clearTimeout(debounceRef.current);
+
+    debounceRef.current = setTimeout(async () => {
+
+      setAiCatLoading(true);
+
+      try {
+
+        const res = await fetch("/api/ai/categorize", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ description, amount, type }),
+        });
+
+        const data = await res.json();
+
+        if (data.category) {
+          setAiCatSuggestion(data);
+        }
+
+      } catch {}
+
+      finally {
+        setAiCatLoading(false);
+      }
+
+    }, 800);
+
+  }, [description, amount, type]);
+
   const {
     loading: transactionLoading,
     fn: transactionFn,
@@ -108,6 +132,7 @@ export function AddTransactionForm({
   } = useFetch(editMode ? updateTransaction : createTransaction);
 
   const onSubmit = (data) => {
+
     const formData = {
       ...data,
       amount: parseFloat(data.amount),
@@ -118,37 +143,44 @@ export function AddTransactionForm({
     } else {
       transactionFn(formData);
     }
+
   };
 
   const handleScanComplete = (scannedData) => {
+
     if (scannedData) {
+
       setValue("amount", scannedData.amount.toString());
       setValue("date", new Date(scannedData.date));
+
       if (scannedData.description) {
         setValue("description", scannedData.description);
       }
+
       if (scannedData.category) {
         setValue("category", scannedData.category);
       }
+
       toast.success("Receipt scanned successfully");
     }
   };
 
   useEffect(() => {
+
     if (transactionResult?.success && !transactionLoading) {
+
       toast.success(
         editMode
           ? "Transaction updated successfully"
           : "Transaction created successfully"
       );
+
       reset();
+
       router.push(`/account/${transactionResult.data.accountId}`);
     }
-  }, [transactionResult, transactionLoading, editMode]);
 
-  const type = watch("type");
-  const isRecurring = watch("isRecurring");
-  const date = watch("date");
+  }, [transactionResult, transactionLoading, editMode]);
 
   const filteredCategories = categories.filter(
     (category) => category.type === type
@@ -156,12 +188,13 @@ export function AddTransactionForm({
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-      {/* Receipt Scanner - Only show in create mode */}
+
       {!editMode && <ReceiptScanner onScanComplete={handleScanComplete} />}
 
       {/* Type */}
       <div className="space-y-2">
         <label className="text-sm font-medium">Type</label>
+
         <Select
           onValueChange={(value) => setValue("type", value)}
           defaultValue={type}
@@ -169,104 +202,111 @@ export function AddTransactionForm({
           <SelectTrigger>
             <SelectValue placeholder="Select type" />
           </SelectTrigger>
+
           <SelectContent>
             <SelectItem value="EXPENSE">Expense</SelectItem>
             <SelectItem value="INCOME">Income</SelectItem>
           </SelectContent>
+
         </Select>
+
         {errors.type && (
           <p className="text-sm text-red-500">{errors.type.message}</p>
         )}
       </div>
 
-      {/* Amount and Account */}
+      {/* Amount + Account */}
       <div className="grid gap-6 md:grid-cols-2">
+
         <div className="space-y-2">
+
           <label className="text-sm font-medium">Amount</label>
+
           <Input
             type="number"
             step="0.01"
             placeholder="0.00"
             {...register("amount")}
           />
+
           {errors.amount && (
             <p className="text-sm text-red-500">{errors.amount.message}</p>
           )}
+
         </div>
 
         <div className="space-y-2">
+
           <label className="text-sm font-medium">Account</label>
+
           <Select
             onValueChange={(value) => setValue("accountId", value)}
             defaultValue={getValues("accountId")}
           >
+
             <SelectTrigger>
               <SelectValue placeholder="Select account" />
             </SelectTrigger>
+
             <SelectContent>
+
               {accounts.map((account) => (
                 <SelectItem key={account.id} value={account.id}>
                   {account.name} (${parseFloat(account.balance).toFixed(2)})
                 </SelectItem>
               ))}
+
               <CreateAccountDrawer>
-                <Button
-                  variant="ghost"
-                  className="relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
-                >
+                <Button variant="ghost" className="w-full">
                   Create Account
                 </Button>
               </CreateAccountDrawer>
+
             </SelectContent>
+
           </Select>
-          {errors.accountId && (
-            <p className="text-sm text-red-500">{errors.accountId.message}</p>
-          )}
+
         </div>
+
       </div>
 
       {/* Category */}
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <label className="text-sm font-medium">Category</label>
-          {aiCatLoading && (
-            <span style={{ display:"flex", alignItems:"center", gap:4, fontSize:".68rem", color:"#a78bfa" }}>
-              <Loader2 size={10} style={{ animation:"spin 1s linear infinite" }}/> AI thinking…
-            </span>
-          )}
-          {aiCatSuggestion && !aiCatLoading && (
-            <button type="button"
-              onClick={() => { setValue("category", aiCatSuggestion.category); setAiCatSuggestion(null); toast.success(`AI set category: ${aiCatSuggestion.category}`); }}
-              style={{ display:"flex", alignItems:"center", gap:5, padding:"3px 9px", borderRadius:9999, background:"rgba(167,139,250,.12)", border:"1px solid rgba(167,139,250,.3)", color:"#a78bfa", fontSize:".68rem", fontWeight:700, cursor:"pointer" }}>
-              <Sparkles size={10}/> AI: {aiCatSuggestion.category} ({aiCatSuggestion.confidence}%)
-            </button>
-          )}
-        </div>
+
+        <label className="text-sm font-medium">Category</label>
+
         <Select
           onValueChange={(value) => setValue("category", value)}
           defaultValue={getValues("category")}
         >
+
           <SelectTrigger>
             <SelectValue placeholder="Select category" />
           </SelectTrigger>
+
           <SelectContent>
+
             {filteredCategories.map((category) => (
               <SelectItem key={category.id} value={category.id}>
                 {category.name}
               </SelectItem>
             ))}
+
           </SelectContent>
+
         </Select>
-        {errors.category && (
-          <p className="text-sm text-red-500">{errors.category.message}</p>
-        )}
+
       </div>
 
       {/* Date */}
       <div className="space-y-2">
+
         <label className="text-sm font-medium">Date</label>
+
         <Popover>
+
           <PopoverTrigger asChild>
+
             <Button
               variant="outline"
               className={cn(
@@ -277,8 +317,11 @@ export function AddTransactionForm({
               {date ? format(date, "PPP") : <span>Pick a date</span>}
               <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
             </Button>
+
           </PopoverTrigger>
+
           <PopoverContent className="w-auto p-0" align="start">
+
             <Calendar
               mode="single"
               selected={date}
@@ -288,64 +331,47 @@ export function AddTransactionForm({
               }
               initialFocus
             />
+
           </PopoverContent>
+
         </Popover>
-        {errors.date && (
-          <p className="text-sm text-red-500">{errors.date.message}</p>
-        )}
+
       </div>
 
       {/* Description */}
       <div className="space-y-2">
+
         <label className="text-sm font-medium">Description</label>
-        <Input placeholder="Enter description" {...register("description")} />
-        {errors.description && (
-          <p className="text-sm text-red-500">{errors.description.message}</p>
-        )}
+
+        <Input
+          placeholder="Enter description"
+          {...register("description")}
+        />
+
       </div>
 
-      {/* Recurring Toggle */}
-      <div className="flex flex-row items-center justify-between rounded-lg border p-4">
-        <div className="space-y-0.5">
-          <label className="text-base font-medium">Recurring Transaction</label>
-          <div className="text-sm text-muted-foreground">
-            Set up a recurring schedule for this transaction
-          </div>
+      {/* Recurring */}
+      <div className="flex items-center justify-between border p-4 rounded-lg">
+
+        <div>
+          <label className="text-base font-medium">
+            Recurring Transaction
+          </label>
+          <p className="text-sm text-muted-foreground">
+            Set recurring schedule
+          </p>
         </div>
+
         <Switch
           checked={isRecurring}
           onCheckedChange={(checked) => setValue("isRecurring", checked)}
         />
+
       </div>
 
-      {/* Recurring Interval */}
-      {isRecurring && (
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Recurring Interval</label>
-          <Select
-            onValueChange={(value) => setValue("recurringInterval", value)}
-            defaultValue={getValues("recurringInterval")}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select interval" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="DAILY">Daily</SelectItem>
-              <SelectItem value="WEEKLY">Weekly</SelectItem>
-              <SelectItem value="MONTHLY">Monthly</SelectItem>
-              <SelectItem value="YEARLY">Yearly</SelectItem>
-            </SelectContent>
-          </Select>
-          {errors.recurringInterval && (
-            <p className="text-sm text-red-500">
-              {errors.recurringInterval.message}
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* Actions */}
+      {/* Submit */}
       <div className="flex gap-4">
+
         <Button
           type="button"
           variant="outline"
@@ -354,19 +380,28 @@ export function AddTransactionForm({
         >
           Cancel
         </Button>
-        <Button type="submit" className="w-full" disabled={transactionLoading}>
+
+        <Button
+          type="submit"
+          className="w-full"
+          disabled={transactionLoading}
+        >
+
           {transactionLoading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              {editMode ? "Updating..." : "Creating..."}
+              Processing...
             </>
           ) : editMode ? (
             "Update Transaction"
           ) : (
             "Create Transaction"
           )}
+
         </Button>
+
       </div>
+
     </form>
   );
 }
