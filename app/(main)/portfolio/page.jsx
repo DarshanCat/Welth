@@ -6,6 +6,7 @@ import {
   Trash2, X, ChevronUp, ChevronDown, BarChart2, PieChart, AlertTriangle,
 } from "lucide-react";
 import { PieChart as RPie, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+import SentimentWidget from "./_components/sentiment-widget";
 
 const fmt    = (n) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n ?? 0);
 const fmtDec = (n) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n ?? 0);
@@ -638,6 +639,7 @@ export default function PortfolioPage() {
           )}
         </>
       )}
+      <SentimentWidget />
 
       {showAdd&&<AddModal onClose={()=>setShowAdd(false)} onAdd={handleAdd}/>}
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>

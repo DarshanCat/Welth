@@ -154,7 +154,7 @@ export default function ChatBot() {
   const inputRef       = useRef(null);
   const recognitionRef = useRef(null);
 
-  useEffect(() => setVoiceOk(!!(window.SpeechRecognition || window.webkitSpeechRecognition)), []);
+  useEffect(() => setVoiceOk(typeof navigator !== "undefined" && !!navigator.mediaDevices), []);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
   useEffect(() => { if (isOpen) setTimeout(() => inputRef.current?.focus(), 200); }, [isOpen]);
 
@@ -195,12 +195,82 @@ export default function ChatBot() {
     }
   }, [input, loading, mode]);
 
-  // ── Voice ─────────────────────────────────────────────────────────────────
-  const startListening = useCallback(() => {
+  // ── Voice — Whisper (HF) primary, Web Speech API fallback ────────────────
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef   = useRef([]);
+
+  const startListening = useCallback(async () => {
+    setIsListening(true);
+    audioChunksRef.current = [];
+
+    // ── Try Whisper via MediaRecorder ────────────────────────────────────
+    try {
+      const stream   = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+
+      recorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        setIsListening(false);
+
+        const blob   = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        if (blob.size < 500) return; // too short — nothing recorded
+
+        setLoading(true);
+        setMessages(p => [...p, { role: "bot", type: "text", text: "🎤 Transcribing with Whisper…" }]);
+
+        try {
+          const res  = await fetch("/api/hf/transcribe", {
+            method:  "POST",
+            headers: { "Content-Type": "audio/webm" },
+            body:    blob,
+          });
+          const data = await res.json();
+
+          if (res.status === 503) {
+            // Model cold start — fallback to Web Speech
+            setMessages(p => p.slice(0, -1)); // remove "transcribing…" msg
+            _fallbackWebSpeech();
+            return;
+          }
+
+          if (data.text) {
+            setMessages(p => p.slice(0, -1)); // remove "transcribing…" msg
+            setInput(data.text);
+            setTimeout(() => sendMessage(data.text), 100);
+          } else {
+            setMessages(p => [...p.slice(0, -1), { role:"bot", type:"text", text:"🎤 Couldn't hear clearly. Try again." }]);
+          }
+        } catch {
+          setMessages(p => [...p.slice(0, -1), { role:"bot", type:"text", text:"🎤 Whisper unavailable — try typing." }]);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      recorder.start();
+      // Auto-stop after 8 seconds
+      setTimeout(() => { if (recorder.state === "recording") recorder.stop(); }, 8000);
+
+    } catch (err) {
+      // No mic permission or MediaRecorder not supported → fallback
+      setIsListening(false);
+      if (err.name === "NotAllowedError") {
+        setMessages(p => [...p, { role:"bot", type:"text", text:"🎤 Mic permission blocked. Allow it in browser settings." }]);
+      } else {
+        _fallbackWebSpeech();
+      }
+    }
+  }, [sendMessage]);
+
+  // ── Web Speech fallback (for Whisper cold-start) ─────────────────────────
+  const _fallbackWebSpeech = useCallback(() => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return;
     const r = new SR(); recognitionRef.current = r;
-    r.lang = "en-US"; r.interimResults = true; r.continuous = true;
+    r.lang = "en-IN"; r.interimResults = true; r.continuous = false;
     let cap = "";
     r.onstart  = () => { cap = ""; setIsListening(true); };
     r.onresult = e => {
@@ -215,13 +285,20 @@ export default function ChatBot() {
     r.onend   = () => { setIsListening(false); recognitionRef.current = null; const t = cap.trim(); if (t) setTimeout(() => sendMessage(t), 150); };
     r.onerror = e => {
       setIsListening(false); recognitionRef.current = null;
-      const msgs = { "not-allowed": "🎤 Mic blocked. Allow it in browser settings.", "no-speech": "🎤 Nothing heard. Try again." };
-      setMessages(p => [...p, { role: "bot", type: "text", text: msgs[e.error] || `🎤 Error: ${e.error}` }]);
+      const msgs = { "not-allowed": "🎤 Mic blocked.", "no-speech": "🎤 Nothing heard." };
+      setMessages(p => [...p, { role:"bot", type:"text", text: msgs[e.error] || `🎤 ${e.error}` }]);
     };
     r.start();
   }, [sendMessage]);
 
-  const stopListening = useCallback(() => recognitionRef.current?.stop(), []);
+  const stopListening = useCallback(() => {
+    if (mediaRecorderRef.current?.state === "recording") {
+      mediaRecorderRef.current.stop();
+    } else {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+    }
+  }, []);
 
   const handleModeChange = (key) => {
     setMode(key);

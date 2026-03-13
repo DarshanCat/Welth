@@ -18,8 +18,10 @@ model User {
   transactions  Transaction[]
   accounts      Account[]
   budgets       Budget[]
-  goals         Goal[]     // ✅ ADD THIS
+  goals         Goal[]
   holdings      Holding[]
+  loans         Loan[]
+  settings      UserSettings?  // ✅ ADDED
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -31,7 +33,7 @@ model Account {
   id           String        @id @default(uuid())
   name         String 
   type         AccountType
-  balance      Decimal       @default(0) // will ask inital balance while creating an account
+  balance      Decimal       @default(0)
   isDefault    Boolean       @default(false)
   userId       String
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -44,59 +46,140 @@ model Account {
 }
 
 model Transaction {
-  id                String            @id @default(uuid())
-  type             TransactionType
-  amount           Decimal
-  description      String?
-  date             DateTime
-  category         String           
-  receiptUrl       String?
-  isRecurring      Boolean           @default(false)
-  recurringInterval RecurringInterval? // Only used if isRecurring is true
-  nextRecurringDate DateTime?         // Next date for recurring transaction
-  lastProcessed    DateTime?         // Last time this recurring transaction was processed
-  status           TransactionStatus  @default(COMPLETED)
-  userId           String
-  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  accountId        String
-  account          Account           @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  id                String             @id @default(uuid())
+  type              TransactionType
+  amount            Decimal
+  description       String?
+  date              DateTime
+  category          String           
+  receiptUrl        String?
+  isRecurring       Boolean            @default(false)
+  recurringInterval RecurringInterval?
+  nextRecurringDate DateTime?
+  lastProcessed     DateTime?
+  status            TransactionStatus  @default(COMPLETED)
+  userId            String
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId         String
+  account           Account            @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
   @@index([userId])
   @@index([accountId])
   @@map("transactions")
 }
 
-
 model Budget {
-  id          String       @id @default(uuid())
-  amount      Decimal
-  lastAlertSent DateTime?  // Track when the last alert was sent
-  userId      String       @unique
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id            String    @id @default(uuid())
+  amount        Decimal
+  lastAlertSent DateTime?
+  userId        String    @unique
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([userId])
   @@map("budgets")
 }
 
 model Goal {
-  id            String   @id @default(uuid())
+  id            String    @id @default(uuid())
   targetAmount  Decimal
   months        Int
   monthlySave   Decimal
   lastAlertSent DateTime?
   userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@map("goals")
 }
 
+model Loan {
+  id            String     @id @default(uuid())
+  name          String
+  loanType      LoanType   @default(PERSONAL)
+  status        LoanStatus @default(ACTIVE)
+  principal     Decimal
+  interestRate  Float
+  tenureMonths  Int
+  emiAmount     Decimal
+  totalAmount   Decimal
+  totalInterest Decimal
+  startDate     DateTime
+  userId        String
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payments      EmiPayment[]
 
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([userId])
+  @@map("loans")
+}
+
+model EmiPayment {
+  id          String    @id @default(uuid())
+  installment Int
+  dueDate     DateTime
+  amount      Decimal
+  principal   Decimal
+  interest    Decimal
+  balance     Decimal
+  status      EmiStatus @default(UPCOMING)
+  paidDate    DateTime?
+  loanId      String
+  loan        Loan      @relation(fields: [loanId], references: [id], onDelete: Cascade)
+
+  @@index([loanId, installment])
+  @@map("emi_payments")
+}
+
+model Holding {
+  id          String      @id @default(uuid())
+  symbol      String
+  name        String
+  type        HoldingType @default(STOCK)
+  quantity    Decimal     @default(0)
+  avgBuyPrice Decimal     @default(0)
+  investedAmt Decimal     @default(0)
+  exchange    String?
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([userId])
+  @@map("holdings")
+}
+
+// ✅ NEW — User notification & app preferences
+model UserSettings {
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Notification preferences
+  emailBudgetAlert    Boolean  @default(true)
+  emailMonthlyReport  Boolean  @default(true)
+  emailGoalAlert      Boolean  @default(true)
+  whatsappAlerts      Boolean  @default(false)
+  whatsappPhone       String?
+
+  // App preferences
+  currency            String   @default("INR")
+  defaultView         String   @default("dashboard")
+  theme               String   @default("dark")
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("user_settings")
+}
+
+// ── Enums ─────────────────────────────────────────────────────────────────────
 
 enum TransactionType {
   INCOME
@@ -120,22 +203,26 @@ enum RecurringInterval {
   MONTHLY
   YEARLY
 }
-model Holding {
-  id           String      @id @default(uuid())
-  symbol       String
-  name         String
-  type         HoldingType @default(STOCK)
-  quantity     Decimal     @default(0)
-  avgBuyPrice  Decimal     @default(0)
-  investedAmt  Decimal     @default(0)
-  exchange     String?
-  userId       String
-  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
 
-  @@index([userId])
-  @@map("holdings")
+enum LoanType {
+  HOME
+  CAR
+  PERSONAL
+  EDUCATION
+  BUSINESS
+  OTHER
+}
+
+enum LoanStatus {
+  ACTIVE
+  CLOSED
+}
+
+enum EmiStatus {
+  UPCOMING
+  PENDING
+  MISSED
+  PAID
 }
 
 enum HoldingType {

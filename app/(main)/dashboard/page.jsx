@@ -2,6 +2,7 @@ import { getUserAccounts, getDashboardData } from "@/actions/dashboard";
 import { getCurrentBudget } from "@/actions/budget";
 import { getUserGoals } from "@/actions/goals";
 import { getFinanceScore } from "@/actions/finance-score";
+import { redirect } from "next/navigation";
 
 import { AccountCard } from "./_components/account-card";
 import { CreateAccountDrawer } from "@/components/create-account-drawer";
@@ -16,6 +17,7 @@ import ReceiptScanner from "@/components/ReceiptScanner";
 import InvestmentWidget from "./_components/investment-widget";
 import DashboardHero from "./_components/dashboard-hero";
 import AiInsightsDashboard from "./_components/ai-insights-dashboard";
+import ExportButton from "@/components/ExportButton";
 
 export default async function DashboardPage() {
   const [accounts, transactions, goals] = await Promise.all([
@@ -23,6 +25,9 @@ export default async function DashboardPage() {
     getDashboardData(),
     getUserGoals(),
   ]);
+
+  // ── Redirect new users to onboarding ──────────────────────────────────────
+  if (!accounts || accounts.length === 0) redirect("/onboarding");
 
   const financeScore   = await getFinanceScore();
   const defaultAccount = accounts?.find((a) => a.isDefault);
@@ -53,6 +58,12 @@ export default async function DashboardPage() {
 
   return (
     <div className="relative space-y-5">
+
+      {/* ── Page title row with Export button ── */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-5xl gradient-title">Dashboard</h1>
+        <ExportButton />
+      </div>
 
       {/* ── Hero: Net Worth + KPIs ── */}
       <DashboardHero

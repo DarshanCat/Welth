@@ -129,7 +129,7 @@ Rules:
 - Always mention Groww, Zerodha, or Kuvera for how to start`;
 
   const res = await groq.chat.completions.create({
-    model: "llama-3.1-70b-versatile",
+    model: "llama-3.3-70b-versatile",
     messages: [
       { role: "system", content: "You are CA Arjun, a SEBI-registered investment advisor. Always respond with valid JSON only." },
       { role: "user", content: prompt },
