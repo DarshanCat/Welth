@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/prisma";
-import Groq from "groq-sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const fmt = (n) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
@@ -21,7 +21,7 @@ async function parseIntent(message) {
   const prompt = `You are a financial assistant that classifies messages into intents.
 Today: ${today}. Message: "${message}"
 
-Reply ONLY with JSON (no markdown), one of:
+Reply ONLY with JSON, one of:
 1. Transaction: {"intent":"add_transaction","type":"EXPENSE"|"INCOME","amount":<number>,"category":"<one of: ${[...EXPENSE_CATEGORIES,...INCOME_CATEGORIES].join(",")}>","description":"<short>","date":"<YYYY-MM-DD>"}
 2. Goal: {"intent":"add_goal","targetAmount":<number>,"months":<number>}
 3. Investment query (stocks/mutual funds/SIP/portfolio/invest/returns/market): {"intent":"investment","query":"<cleaned>","riskProfile":"conservative"|"moderate"|"aggressive"}
@@ -29,15 +29,19 @@ Reply ONLY with JSON (no markdown), one of:
 5. Tax query (tax/ITR/section 80C/deduction): {"intent":"tax_advice","query":"<cleaned>"}
 6. General finance: {"intent":"analysis","query":"<cleaned>"}
 
-Rules: amount = plain number, no symbols. Default to "analysis" if unsure. ONLY JSON.`;
+Rules: amount = plain number, no symbols. Default to "analysis" if unsure.`;
 
-  const res = await groq.chat.completions.create({
-    model: "llama-3.1-8b-instant",
-    messages: [{ role: "user", content: prompt }],
-    temperature: 0.1, max_tokens: 150,
-  });
-  const raw = res.choices[0]?.message?.content?.trim().replace(/```json|```/g, "").trim() || "{}";
-  try { return JSON.parse(raw); } catch { return { intent: "analysis", query: message }; }
+  try {
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const res = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: { responseMimeType: "application/json", temperature: 0.1 }
+    });
+    return JSON.parse(res.response.text());
+  } catch (error) {
+    console.error("Intent parsing failed:", error);
+    return { intent: "analysis", query: message };
+  }
 }
 
 // ── Load user financial context ───────────────────────────────────────────────
@@ -98,7 +102,7 @@ CLIENT PROFILE:
 
 CLIENT QUESTION: "${query}"
 
-Provide investment advice structured EXACTLY as this JSON (no markdown):
+Provide investment advice structured EXACTLY as this JSON:
 {
   "summary": "<2 sentence investment overview based on their actual savings capacity>",
   "canInvest": ${ctx.canInvest},
@@ -128,27 +132,24 @@ Rules:
 - Monthly amounts must add up to roughly ${ctx.investableMonthly}
 - Always mention Groww, Zerodha, or Kuvera for how to start`;
 
-  const res = await groq.chat.completions.create({
-    model: "llama-3.3-70b-versatile",
-    messages: [
-      { role: "system", content: "You are CA Arjun, a SEBI-registered investment advisor. Always respond with valid JSON only." },
-      { role: "user", content: prompt },
-    ],
-    temperature: 0.2, max_tokens: 900,
-  });
-
-  const raw = res.choices[0]?.message?.content?.replace(/```json|```/g, "").trim() || "{}";
   try {
-    const data = JSON.parse(raw);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const res = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: { responseMimeType: "application/json", temperature: 0.2 }
+    });
+    const data = JSON.parse(res.response.text());
     return { type: "investment", data };
-  } catch {
-    return { type: "text", text: raw };
+  } catch (error) {
+    console.error("Investment advice failed:", error);
+    return { type: "text", text: "Unable to generate specific investment advice right now." };
   }
 }
 
 // ── Budget Analysis ───────────────────────────────────────────────────────────
-async function getBudgetAnalysis(query, ctx) {
-  const prompt = `You are CA Arjun, a Chartered Accountant. Analyse spending and give specific advice.
+async function getBudgetAnalysis(query, ctx, strictMode) {
+  const strictRule = strictMode ? "\n\n*** STRICT MODE (DEVIL'S ADVOCATE) ***\nAct as a harsh, uncompromising financial coach. Strongly discourage any unnecessary or impulsive spending. Scrutinize all purchases against their budget and goals. Roast bad financial decisions and prioritize aggressive saving." : "";
+  const prompt = `You are CA Arjun, a Chartered Accountant. Analyse spending and give specific advice.${strictRule}
 
 CLIENT DATA (3 months):
 - Income: ${fmt(ctx.income)} | Expenses: ${fmt(ctx.expense)} | Savings: ${fmt(ctx.savings)} (${ctx.savingsRate}%)
@@ -161,12 +162,12 @@ Reply as CA Arjun, professional, specific with ₹ numbers from their data. 3-5 
 Identify the biggest overspend area and give a specific cut target.
 End with "— CA Arjun"`;
 
-  const res = await groq.chat.completions.create({
-    model: "llama-3.1-8b-instant",
-    messages: [{ role: "user", content: prompt }],
-    temperature: 0.25, max_tokens: 300,
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  const res = await model.generateContent({
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.25 }
   });
-  return { type: "text", text: res.choices[0]?.message?.content || "Unable to analyse." };
+  return { type: "text", text: res.response.text() || "Unable to analyse." };
 }
 
 // ── Tax Advice ────────────────────────────────────────────────────────────────
@@ -187,17 +188,18 @@ Give specific tax advice for India (FY 2024-25):
 - Keep it to 4-6 sentences, professional tone
 End with "— CA Arjun"`;
 
-  const res = await groq.chat.completions.create({
-    model: "llama-3.1-8b-instant",
-    messages: [{ role: "user", content: prompt }],
-    temperature: 0.2, max_tokens: 350,
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  const res = await model.generateContent({
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.2 }
   });
-  return { type: "text", text: res.choices[0]?.message?.content || "Unable to provide tax advice." };
+  return { type: "text", text: res.response.text() || "Unable to provide tax advice." };
 }
 
 // ── General CA Advice ─────────────────────────────────────────────────────────
-async function getCAAdvice(query, ctx) {
-  const prompt = `You are CA Arjun, a senior Chartered Accountant and personal finance advisor.
+async function getCAAdvice(query, ctx, strictMode) {
+  const strictRule = strictMode ? "\n\n*** STRICT MODE (DEVIL'S ADVOCATE) ***\nAct as a harsh, uncompromising financial coach. Strongly discourage any unnecessary or impulsive spending. Scrutinize all purchases against their budget and goals. Roast bad financial decisions and prioritize aggressive saving." : "";
+  const prompt = `You are CA Arjun, a senior Chartered Accountant and personal finance advisor.${strictRule}
 
 CLIENT DATA (3 months):
 - Income: ${fmt(ctx.income)} | Expenses: ${fmt(ctx.expense)} | Savings: ${fmt(ctx.savings)} (${ctx.savingsRate}%)
@@ -208,12 +210,12 @@ Question: "${query}"
 
 Reply professionally, use their actual ₹ numbers. 2-4 sentences. End with "— CA Arjun"`;
 
-  const res = await groq.chat.completions.create({
-    model: "llama-3.1-8b-instant",
-    messages: [{ role: "user", content: prompt }],
-    temperature: 0.3, max_tokens: 300,
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  const res = await model.generateContent({
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.3 }
   });
-  return { type: "text", text: res.choices[0]?.message?.content || "Unable to generate advice." };
+  return { type: "text", text: res.response.text() || "Unable to generate advice." };
 }
 
 // ── Main Handler ──────────────────────────────────────────────────────────────
@@ -222,7 +224,7 @@ export async function POST(req) {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ reply: "Please login to use the finance assistant.", type: "text" }, { status: 401 });
 
-    const { message } = await req.json();
+    const { message, strictMode } = await req.json();
     if (!message?.trim()) return NextResponse.json({ reply: "Please enter a message.", type: "text" });
 
     const user = await db.user.findUnique({ where: { clerkUserId: userId } });
@@ -253,7 +255,7 @@ export async function POST(req) {
       });
       return NextResponse.json({
         type: "text",
-        reply: `✅ Transaction Recorded\n\n• Amount: ${fmt(amount)}\n• Type: ${type === "INCOME" ? "Income" : "Expense"}\n• Category: ${tx.category}\n• Date: ${txDate.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}\n• Account: ${account.name}\n\nDashboard updated.`,
+        reply: `✅ Transaction Recorded\n\n• Amount: ${fmt(amount)}\n• Type: ${type === "INCOME" ? "Income" : "Expense"}\n• Category: ${tx.category}\n• Date: ${txDate.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}\n• Account: ${account.name}\n\nDashboard updated.${strictMode && type === "EXPENSE" ? "\n\n⚠️ CA Arjun (STRICT): Logged, but this expense represents poor financial discipline. Is this truly necessary when you have goals to meet? Do better." : ""}`,
         action: "transaction_added",
       });
     }
@@ -279,7 +281,7 @@ export async function POST(req) {
 
     // ── Budget Analysis ────────────────────────────────────────────────────
     if (parsed.intent === "budget_analysis") {
-      const result = await getBudgetAnalysis(parsed.query || message, ctx);
+      const result = await getBudgetAnalysis(parsed.query || message, ctx, strictMode);
       return NextResponse.json(result);
     }
 
@@ -290,11 +292,11 @@ export async function POST(req) {
     }
 
     // ── General ────────────────────────────────────────────────────────────
-    const result = await getCAAdvice(parsed.query || message, ctx);
+    const result = await getCAAdvice(parsed.query || message, ctx, strictMode);
     return NextResponse.json(result);
 
   } catch (err) {
     console.error("[Chat API Error]", err);
-    return NextResponse.json({ reply: "⚠️ Something went wrong. Please try again.", type: "text" }, { status: 500 });
+    return NextResponse.json({ reply: "⚠️ Something went wrong connecting to the AI. Please try again.", type: "text" }, { status: 500 });
   }
 }

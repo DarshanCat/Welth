@@ -161,6 +161,79 @@ export default function EmailTemplate({
       </Html>
     );
   }
+
+  if (type === "offer") {
+    return (
+      <Html>
+        <Head />
+        <Preview>Exclusive Financial Offer</Preview>
+        <Body style={styles.body}>
+          <Container style={styles.container}>
+            <Heading style={styles.title}>Special Offer For You</Heading>
+
+            <Text style={styles.text}>Hello {userName},</Text>
+            <Text style={styles.text}>
+              Based on your excellent financial profile, we have a customized offer tailored just for you!
+            </Text>
+
+            <Section style={styles.statsContainer}>
+              <div style={{ ...styles.stat, backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0" }}>
+                <Text style={{ ...styles.heading, color: "#166534" }}>{data?.offerTitle ?? "Special Offer"}</Text>
+                <Text style={{ ...styles.text, color: "#15803d" }}>
+                  {data?.offerDetails ?? "Click the link in your dashboard to view this exclusive opportunity."}
+                </Text>
+              </div>
+            </Section>
+
+            <Text style={styles.text}>
+              Head over to your Welth Dashboard Notifications to claim this offer or learn more!
+            </Text>
+            
+            <Text style={styles.footer}>
+              Thank you for using Welth. Keep tracking your finances for better financial health!
+            </Text>
+          </Container>
+        </Body>
+      </Html>
+    );
+  }
+
+  if (type === "subscription-alert") {
+    return (
+      <Html>
+        <Head />
+        <Preview>Unused Subscription Alert</Preview>
+        <Body style={styles.body}>
+          <Container style={styles.container}>
+            <Heading style={styles.title}>Subscription Leak Detected</Heading>
+            <Text style={styles.text}>Hello {userName},</Text>
+            <Text style={styles.text}>
+              Our AI has detected a recurring charge that you might not be using actively.
+            </Text>
+            <Section style={styles.statsContainer}>
+              <div style={{ ...styles.stat, backgroundColor: "#fff1f2", border: "1px solid #fecdd3" }}>
+                <Text style={{ ...styles.heading, color: "#9f1239" }}>{data?.serviceName}</Text>
+                <Text style={{ ...styles.text, color: "#be123c" }}>
+                  Recurring Amount: ${data?.amount} / {data?.interval}
+                </Text>
+              </div>
+            </Section>
+            <Text style={styles.text}>
+              If you wish to cancel this subscription, click the button below to automatically generate a cancellation request email targeting their support department.
+            </Text>
+            <Section style={{ textAlign: "center", marginTop: "20px" }}>
+              <a 
+                href={data?.cancellationMailto || "#"} 
+                style={{ backgroundColor: "#e11d48", color: "#fff", padding: "12px 20px", textDecoration: "none", borderRadius: "6px", fontWeight: "bold", display: "inline-block" }}
+              >
+                1-Click Cancel Subscription
+              </a>
+            </Section>
+          </Container>
+        </Body>
+      </Html>
+    );
+  }
 }
 
 //

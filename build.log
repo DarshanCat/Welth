@@ -1,0 +1,32 @@
+ ΓÜá Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of C:\Users\Darshan\package-lock.json as the root directory.
+ To silence this warning, set `outputFileTracingRoot` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats for more information.
+ Detected additional lockfiles: 
+   * C:\Users\Darshan\ai-finance-platform\package-lock.json
+
+   Γû▓ Next.js 15.5.9
+   - Environments: .env
+   - Experiments (use with caution):
+     ┬╖ serverActions
+
+   Creating an optimized production build ...
+Failed to compile.
+
+./app/(main)/transaction/_components/transaction-form.jsx
+Module parse failed: Identifier 'type' has already been declared (136:10)
+File was processed with these loaders:
+ * ./node_modules/next/dist/build/webpack/loaders/next-flight-client-module-loader.js
+ * ./node_modules/next/dist/build/webpack/loaders/next-swc-loader.js
+You may need an additional loader to handle the result of these loaders.
+|         editMode
+|     ]);
+>     const type = watch("type");
+|     const isRecurring = watch("isRecurring");
+|     const date = watch("date");
+
+Import trace for requested module:
+./app/(main)/transaction/_components/transaction-form.jsx
+
+
+> Build failed because of webpack errors

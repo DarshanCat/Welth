@@ -22,6 +22,7 @@ model User {
   holdings      Holding[]
   loans         Loan[]
   settings      UserSettings?  // ✅ ADDED
+  notifications Notification[] // ✅ ADDED
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -58,6 +59,7 @@ model Transaction {
   nextRecurringDate DateTime?
   lastProcessed     DateTime?
   status            TransactionStatus  @default(COMPLETED)
+  splitWith         String?            
   userId            String
   user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   accountId         String
@@ -155,6 +157,21 @@ model Holding {
   @@map("holdings")
 }
 
+model Notification {
+  id        String   @id @default(uuid())
+  title     String
+  message   String
+  type      String   // e.g., "OFFER", "ALERT", "INFO"
+  isRead    Boolean  @default(false)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("notifications")
+}
+
 // ✅ NEW — User notification & app preferences
 model UserSettings {
   id                  String   @id @default(uuid())
@@ -165,8 +182,10 @@ model UserSettings {
   emailBudgetAlert    Boolean  @default(true)
   emailMonthlyReport  Boolean  @default(true)
   emailGoalAlert      Boolean  @default(true)
+  emailOffersAlert    Boolean  @default(true)
   whatsappAlerts      Boolean  @default(false)
   whatsappPhone       String?
+  upiId               String?  
 
   // App preferences
   currency            String   @default("INR")

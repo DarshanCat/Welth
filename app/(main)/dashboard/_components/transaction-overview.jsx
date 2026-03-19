@@ -22,6 +22,8 @@ import {
 } from "@/components/ui/select";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 const COLORS = [
@@ -40,7 +42,7 @@ const formatINR = (amount) =>
     currency: "INR",
   }).format(amount);
 
-export function DashboardOverview({ accounts, transactions }) {
+export function DashboardOverview({ accounts, transactions, upiId }) {
   const [selectedAccountId, setSelectedAccountId] = useState(
     accounts.find((a) => a.isDefault)?.id || accounts[0]?.id
   );
@@ -102,7 +104,13 @@ export function DashboardOverview({ accounts, transactions }) {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Recent Transactions</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            Recent Transactions
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-medium text-emerald-500">
+               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+               Live Sync
+            </div>
+          </CardTitle>
 
           <Select
             value={selectedAccountId}
@@ -143,20 +151,36 @@ export function DashboardOverview({ accounts, transactions }) {
                   </p>
                 </div>
 
-                <div
-                  className={cn(
-                    "flex items-center",
-                    t.type === "EXPENSE"
-                      ? "text-red-500"
-                      : "text-green-600"
+                <div className="flex flex-col items-end gap-1">
+                  <div
+                    className={cn(
+                      "flex items-center",
+                      t.type === "EXPENSE"
+                        ? "text-red-500"
+                        : "text-green-600"
+                    )}
+                  >
+                    {t.type === "EXPENSE" ? (
+                      <ArrowDownRight className="h-4 w-4 mr-1" />
+                    ) : (
+                      <ArrowUpRight className="h-4 w-4 mr-1" />
+                    )}
+                    {formatINR(t.amount)}
+                  </div>
+                  {t.splitWith && upiId && t.type === "EXPENSE" && (
+                    <Button 
+                      variant="outline" 
+                      className="h-6 text-[10px] px-2 py-0 border-emerald-500/50 text-emerald-500 hover:bg-emerald-500/10"
+                      onClick={() => {
+                        const amt = (t.amount / 2).toFixed(2);
+                        const link = `upi://pay?pa=${upiId}&am=${amt}&cu=INR`;
+                        navigator.clipboard.writeText(link);
+                        toast.success(`UPI Link copied for ₹${amt}`);
+                      }}
+                    >
+                      Share UPI
+                    </Button>
                   )}
-                >
-                  {t.type === "EXPENSE" ? (
-                    <ArrowDownRight className="h-4 w-4 mr-1" />
-                  ) : (
-                    <ArrowUpRight className="h-4 w-4 mr-1" />
-                  )}
-                  {formatINR(t.amount)}
                 </div>
               </div>
             ))
@@ -167,19 +191,18 @@ export function DashboardOverview({ accounts, transactions }) {
 
       {/* Expense Donut Chart */}
 
-      <Card>
+      <Card className="flex flex-col h-full">
         <CardHeader>
           <CardTitle>Expense Breakdown</CardTitle>
         </CardHeader>
-
-        <CardContent className="h-[340px] w-full">
+        <CardContent className="flex-1 w-full pb-10">
 
           {expenseChartData.length === 0 ? (
             <p className="text-center text-muted-foreground">
               No expenses this month
             </p>
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={380}>
               <PieChart>
 
                 <Pie
@@ -204,7 +227,7 @@ export function DashboardOverview({ accounts, transactions }) {
                 </Pie>
 
                 <Tooltip formatter={(value) => formatINR(value)} />
-                <Legend verticalAlign="bottom" height={36} />
+                <Legend verticalAlign="bottom" height={130} wrapperStyle={{ paddingTop: '20px' }} />
 
               </PieChart>
             </ResponsiveContainer>
@@ -215,19 +238,18 @@ export function DashboardOverview({ accounts, transactions }) {
 
       {/* Income Donut Chart */}
 
-      <Card>
+      <Card className="flex flex-col h-full">
         <CardHeader>
           <CardTitle>Income Breakdown</CardTitle>
         </CardHeader>
-
-        <CardContent className="h-[340px] w-full">
+        <CardContent className="flex-1 w-full pb-10">
 
           {incomeChartData.length === 0 ? (
             <p className="text-center text-muted-foreground">
               No income this month
             </p>
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={380}>
               <PieChart>
 
                 <Pie
@@ -252,7 +274,7 @@ export function DashboardOverview({ accounts, transactions }) {
                 </Pie>
 
                 <Tooltip formatter={(value) => formatINR(value)} />
-                <Legend verticalAlign="bottom" height={36} />
+                <Legend verticalAlign="bottom" height={130} wrapperStyle={{ paddingTop: '20px' }} />
 
               </PieChart>
             </ResponsiveContainer>

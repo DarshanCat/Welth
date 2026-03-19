@@ -5,7 +5,7 @@ import {
   Send, Bot, User, Loader2, X, Mic, CheckCircle2,
   Sparkles, TrendingUp, AlertTriangle,
   BarChart2, Shield, Briefcase, ChevronRight,
-  PieChart,
+  PieChart, Volume2, VolumeX,
 } from "lucide-react";
 
 const SUGGESTIONS = {
@@ -139,6 +139,7 @@ function VoiceBars({ color = "#f87171" }) {
 export default function ChatBot() {
   const [isOpen,      setIsOpen]      = useState(false);
   const [mode,        setMode]        = useState("ca");
+  const [strictMode,  setStrictMode]  = useState(false);
   const [showModes,   setShowModes]   = useState(false);
   const [messages,    setMessages]    = useState([{
     role: "bot", type: "text",
@@ -149,16 +150,41 @@ export default function ChatBot() {
   const [isListening, setIsListening] = useState(false);
   const [transcript,  setTranscript]  = useState("");
   const [voiceOk,     setVoiceOk]     = useState(false);
+  const [isVoiceOutput, setIsVoiceOutput] = useState(true);
 
   const bottomRef      = useRef(null);
   const inputRef       = useRef(null);
   const recognitionRef = useRef(null);
+  const cancelListeningRef = useRef(false);
 
   useEffect(() => setVoiceOk(typeof navigator !== "undefined" && !!navigator.mediaDevices), []);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
-  useEffect(() => { if (isOpen) setTimeout(() => inputRef.current?.focus(), 200); }, [isOpen]);
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => inputRef.current?.focus(), 200);
+    } else {
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    }
+  }, [isOpen]);
 
   const currentMode = MODES.find(m => m.key === mode) || MODES[0];
+
+  const speakText = useCallback((text) => {
+    if (!isVoiceOutput || typeof window === "undefined" || !window.speechSynthesis || !text) return;
+    window.speechSynthesis.cancel();
+    const cleanText = text.replace(/[\u{1F600}-\u{1F6FF}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').replace(/\*/g, '').replace(/— CA Arjun/g, '').trim();
+    if (!cleanText) return;
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = "en-IN";
+    utterance.rate = 1.05;
+    const voices = window.speechSynthesis.getVoices();
+    const indianVoice = voices.find(v => v.lang.includes("en-IN") && (v.name.includes("Male") || v.name.includes("Ravi") || v.name.includes("Arjun"))) 
+                     || voices.find(v => v.lang.includes("en-IN"));
+    if (indianVoice) utterance.voice = indianVoice;
+    window.speechSynthesis.speak(utterance);
+  }, [isVoiceOutput]);
 
   // ── Send ──────────────────────────────────────────────────────────────────
   const sendMessage = useCallback(async (text = input) => {
@@ -171,9 +197,15 @@ export default function ChatBot() {
     const isWrite = /^(add|spent|paid|received|save\s+₹|\d)/i.test(trimmed);
     const cacheKey = `${mode}::${trimmed.toLowerCase()}`;
 
+    // Stop speaking when a new message is sent
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+
     if (!isWrite && responseCache.has(cacheKey)) {
       const c = responseCache.get(cacheKey);
       setMessages(p => [...p, { ...c, role: "bot" }]);
+      speakText(c.text);
       setLoading(false);
       return;
     }
@@ -182,12 +214,14 @@ export default function ChatBot() {
       const res  = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: trimmed, mode }),
+        body: JSON.stringify({ message: trimmed, mode, strictMode }),
       });
       const data = await res.json();
-      const msg  = { role: "bot", type: data.type || "text", text: data.reply || data.text, action: data.action, data: data.data };
+      const botText = data.reply || data.text || "";
+      const msg  = { role: "bot", type: data.type || "text", text: botText, action: data.action, data: data.data };
       if (!isWrite) responseCache.set(cacheKey, msg);
       setMessages(p => [...p, msg]);
+      speakText(botText);
     } catch {
       setMessages(p => [...p, { role: "bot", type: "text", text: "⚠️ Server error. Please try again." }]);
     } finally {
@@ -200,6 +234,7 @@ export default function ChatBot() {
   const audioChunksRef   = useRef([]);
 
   const startListening = useCallback(async () => {
+    cancelListeningRef.current = false;
     setIsListening(true);
     audioChunksRef.current = [];
 
@@ -214,6 +249,8 @@ export default function ChatBot() {
       recorder.onstop = async () => {
         stream.getTracks().forEach(t => t.stop());
         setIsListening(false);
+
+        if (cancelListeningRef.current) return;
 
         const blob   = new Blob(audioChunksRef.current, { type: "audio/webm" });
         if (blob.size < 500) return; // too short — nothing recorded
@@ -282,7 +319,12 @@ export default function ChatBot() {
       cap = (cap + fi) || it;
       setTranscript(cap || it); setInput(cap || it);
     };
-    r.onend   = () => { setIsListening(false); recognitionRef.current = null; const t = cap.trim(); if (t) setTimeout(() => sendMessage(t), 150); };
+    r.onend   = () => {
+      setIsListening(false); recognitionRef.current = null;
+      if (cancelListeningRef.current) return;
+      const t = cap.trim();
+      if (t) setTimeout(() => sendMessage(t), 150);
+    };
     r.onerror = e => {
       setIsListening(false); recognitionRef.current = null;
       const msgs = { "not-allowed": "🎤 Mic blocked.", "no-speech": "🎤 Nothing heard." };
@@ -300,11 +342,23 @@ export default function ChatBot() {
     }
   }, []);
 
+  const cancelListening = useCallback(() => {
+    cancelListeningRef.current = true;
+    if (mediaRecorderRef.current?.state === "recording") {
+      mediaRecorderRef.current.stop();
+    } else {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+    }
+  }, []);
+
   const handleModeChange = (key) => {
     setMode(key);
     setShowModes(false);
     const m = MODES.find(m => m.key === key);
-    setMessages(p => [...p, { role: "bot", type: "text", text: `Switched to ${m.label} mode.\n${m.desc}. Try a suggestion below or ask anything!` }]);
+    const msgText = `Switched to ${m.label} mode.\n${m.desc}. Try a suggestion below or ask anything!`;
+    setMessages(p => [...p, { role: "bot", type: "text", text: msgText }]);
+    speakText(msgText);
   };
 
   return (
@@ -354,9 +408,31 @@ export default function ChatBot() {
               {isListening ? "🎤 Listening…" : loading ? "Thinking…" : `${currentMode.label} Mode`}
             </p>
           </div>
-          <button onClick={() => setShowModes(v => !v)}
-            style={{ padding: "4px 10px", borderRadius: 9999, background: `${currentMode.color}18`, border: `1px solid ${currentMode.color}40`, color: currentMode.color, fontSize: ".7rem", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, transition: "all .2s" }}>
-            <PieChart size={10} /> Mode
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <button onClick={() => setIsVoiceOutput(v => !v)}
+              style={{ padding: "4px 8px", borderRadius: 9999, background: isVoiceOutput ? "rgba(52,211,153,.15)" : "rgba(255,255,255,.05)", border: `1px solid ${isVoiceOutput ? "rgba(52,211,153,.4)" : "rgba(255,255,255,.1)"}`, color: isVoiceOutput ? "#34d399" : "#94a3b8", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .2s", flexShrink: 0 }}>
+              {isVoiceOutput ? <Volume2 size={12} /> : <VolumeX size={12} />}
+            </button>
+            <button onClick={() => setShowModes(v => !v)}
+              style={{ padding: "4px 10px", borderRadius: 9999, background: `${currentMode.color}18`, border: `1px solid ${currentMode.color}40`, color: currentMode.color, fontSize: ".7rem", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, transition: "all .2s" }}>
+              <PieChart size={10} /> Mode
+            </button>
+          </div>
+        </div>
+
+        {/* Strict Mode Toggle */}
+        <div style={{ padding: "8px 16px", background: strictMode ? "rgba(239,68,68,0.08)" : "rgba(255,255,255,0.02)", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 22, height: 22, borderRadius: 6, background: strictMode ? "rgba(239,68,68,0.2)" : "rgba(148,163,184,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Shield size={12} color={strictMode ? "#ef4444" : "#94a3b8"} />
+            </div>
+            <div>
+              <p style={{ fontSize: "0.75rem", color: strictMode ? "#ef4444" : "#cbd5e1", fontWeight: 700, margin: 0 }}>Devil's Advocate</p>
+              <p style={{ fontSize: "0.6rem", color: "#64748b", margin: 0 }}>Strict spending control</p>
+            </div>
+          </div>
+          <button onClick={() => setStrictMode(!strictMode)} style={{ background: strictMode ? "#ef4444" : "rgba(255,255,255,0.1)", border: "none", width: 36, height: 20, borderRadius: 9999, position: "relative", cursor: "pointer", transition: "all 0.25s", flexShrink: 0 }}>
+            <span style={{ position: "absolute", top: 3, left: strictMode ? 19 : 3, width: 14, height: 14, background: "#fff", borderRadius: 9999, transition: "all 0.25s", boxShadow: "0 2px 4px rgba(0,0,0,0.2)" }} />
           </button>
         </div>
 
@@ -387,6 +463,7 @@ export default function ChatBot() {
             <p style={{ color: "#fca5a5", fontSize: ".75rem", flex: 1, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {transcript ? `"${transcript}"` : "Speak now…"}
             </p>
+            <button onClick={cancelListening} style={{ background: "transparent", border: "1px solid rgba(239,68,68,.4)", color: "#fca5a5", fontSize: ".68rem", padding: "2px 8px", borderRadius: 9999, cursor: "pointer" }}>Cancel</button>
             <button onClick={stopListening} style={{ background: "rgba(239,68,68,.4)", border: "none", color: "#fff", fontSize: ".68rem", padding: "2px 8px", borderRadius: 9999, cursor: "pointer" }}>Done</button>
           </div>
         )}
@@ -453,7 +530,7 @@ export default function ChatBot() {
             style={{ flex: 1, fontSize: ".8rem", borderRadius: 9999, padding: ".42rem .9rem", background: "rgba(255,255,255,.06)", border: `1px solid ${isListening ? "rgba(239,68,68,.45)" : `${currentMode.color}25`}`, color: "#e2e8f0", outline: "none", transition: "border-color .2s" }}
           />
           {voiceOk && (
-            <button onClick={isListening ? stopListening : startListening} disabled={loading}
+            <button onClick={isListening ? cancelListening : startListening} disabled={loading}
               style={{ width: 32, height: 32, borderRadius: 9999, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: isListening ? "rgba(239,68,68,.8)" : "rgba(255,255,255,.07)", border: isListening ? "none" : "1px solid rgba(255,255,255,.1)", boxShadow: isListening ? "0 0 14px rgba(239,68,68,.5)" : "none", cursor: "pointer", transition: "all .2s" }}>
               {isListening ? <VoiceBars color="#fff" /> : <Mic size={13} color="#94a3b8" />}
             </button>

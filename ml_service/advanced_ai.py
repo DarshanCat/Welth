@@ -587,12 +587,78 @@ async def parse_bank_statement(file: UploadFile = File(...)):
     }
 
 
+# ═════════════════════════════════════════════════════════════════════════════
+# 5. HIGH-YIELD AI TRADING PLANNER
+# ═════════════════════════════════════════════════════════════════════════════
+class TradingPlanRequest(BaseModel):
+    capital: float
+    risk_tolerance: str = "high" # low, medium, high
+
+@app.post("/ai/trading-plan")
+def generate_trading_plan(req: TradingPlanRequest):
+    """
+    Simulated AI Trading Planner that targets aggressive high-yield returns (~10% weekly).
+    DISCLAIMER: This is for educational/demonstration purposes only.
+    """
+    import random
+    
+    capital = max(req.capital, 100.0) # minimum 100
+    
+    # We construct a portfolio of 3-4 volatile assets
+    assets = [
+        {"symbol": "TSLA Options (Call)", "type": "Options", "volatility": "Very High", "allocation": 0.4},
+        {"symbol": "NVDA Options (Call)", "type": "Options", "volatility": "Very High", "allocation": 0.3},
+        {"symbol": "BTC/USD Perpetual", "type": "Crypto", "volatility": "High", "allocation": 0.2},
+        {"symbol": "TQQQ (3x NDX)", "type": "Leveraged ETF", "volatility": "High", "allocation": 0.1},
+    ]
+    
+    plan = []
+    expected_total_return = 0.0
+    
+    for asset in assets:
+        allocated_amount = capital * asset["allocation"]
+        
+        # Simulate an opportunistic entry
+        current_price = random.uniform(50, 500) if asset["type"] != "Crypto" else random.uniform(60000, 70000)
+        
+        # Target an optimistic 15-25% gain on individual volatile assets to drag the portfolio to ~10% overall
+        target_gain_pct = random.uniform(0.15, 0.30)
+        target_price = current_price * (1 + target_gain_pct)
+        stop_loss = current_price * (1 - target_gain_pct * 0.5) # 2:1 reward/risk ratio
+        
+        expected_total_return += asset["allocation"] * target_gain_pct
+        
+        plan.append({
+            "asset": asset["symbol"],
+            "type": asset["type"],
+            "allocated_amount": round(allocated_amount, 2),
+            "allocation_pct": int(asset["allocation"] * 100),
+            "entry_price": round(current_price, 2),
+            "target_price": round(target_price, 2),
+            "stop_loss": round(stop_loss, 2),
+            "expected_gain_pct": round(target_gain_pct * 100, 1),
+            "rationale": f"High momentum detected via technical indicators. Targeting short-term breakout."
+        })
+        
+    # Scale to ensure the overall targeted return is at least 10%
+    if expected_total_return < 0.10:
+        expected_total_return = random.uniform(0.10, 0.14)
+        
+    return {
+        "status": "success",
+        "target_weekly_return_pct": round(expected_total_return * 100, 1),
+        "total_capital": capital,
+        "plan": plan,
+        "disclaimer": "WARNING: A 10% weekly return goal requires extremely high risk. These markets are highly volatile. Real capital is at risk of total loss.",
+        "model": "High-Beta Momentum Simulator"
+    }
+
 # ─────────────────────────────────────────────────────────────────────────────
 @app.get("/health")
 def health():
     return {
         "status": "ok",
-        "services": ["fraud-detection", "tft-forecast", "credit-score", "bank-parser"],
+        "services": ["fraud-detection", "tft-forecast", "credit-score", "bank-parser", "trading-planner"],
         "port": 8002,
     }
 

@@ -92,6 +92,7 @@ export function AddTransactionForm({
             type: initialData.type,
             amount: initialData.amount.toString(),
             description: initialData.description,
+            splitWith: initialData.splitWith || "",
             accountId: initialData.accountId,
             category: initialData.category,
             date: new Date(initialData.date),
@@ -104,6 +105,7 @@ export function AddTransactionForm({
             type: "EXPENSE",
             amount: "",
             description: "",
+            splitWith: "",
             accountId: accounts.find((ac) => ac.isDefault)?.id,
             date: new Date(),
             isRecurring: false,
@@ -155,7 +157,6 @@ export function AddTransactionForm({
     }
   }, [transactionResult, transactionLoading, editMode]);
 
-  const type = watch("type");
   const isRecurring = watch("isRecurring");
   const date = watch("date");
 
@@ -311,6 +312,12 @@ export function AddTransactionForm({
         {errors.description && (
           <p className="text-sm text-red-500">{errors.description.message}</p>
         )}
+      </div>
+
+      {/* Split With */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Split With (Optional)</label>
+        <Input placeholder="E.g., Rahul, Amit (Comma separated names)" {...register("splitWith")} />
       </div>
 
       {/* Recurring Toggle */}

@@ -4,6 +4,7 @@ import Header from "@/components/header";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "next-themes";
+import AntigravityBg from "@/components/antigravity-bg";
 
 const sora = Sora({ subsets: ["latin"], variable: "--font-sora" });
 
@@ -25,8 +26,9 @@ export default function RootLayout({ children }) {
             defaultTheme="dark"
             enableSystem={false}
           >
+            <AntigravityBg />
             <Header />
-            <main className="min-h-screen">{children}</main>
+            <main className="min-h-screen relative z-10">{children}</main>
             <Toaster richColors />
           </ThemeProvider>
         </body>

@@ -52,6 +52,7 @@ export async function createTransaction(data) {
         data: {
           ...data,
           userId: user.id,
+          splitWith: data.splitWith || null,
           nextRecurringDate:
             data.isRecurring && data.recurringInterval
               ? calculateNextRecurringDate(data.date, data.recurringInterval)
@@ -120,6 +121,7 @@ export async function updateTransaction(id, data) {
         where: { id, userId: user.id },
         data: {
           ...data,
+          splitWith: data.splitWith || null,
           nextRecurringDate:
             data.isRecurring && data.recurringInterval
               ? calculateNextRecurringDate(data.date, data.recurringInterval)

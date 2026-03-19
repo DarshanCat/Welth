@@ -3,6 +3,8 @@ import { getCurrentBudget } from "@/actions/budget";
 import { getUserGoals } from "@/actions/goals";
 import { getFinanceScore } from "@/actions/finance-score";
 import { redirect } from "next/navigation";
+import { db } from "@/lib/prisma";
+import { auth } from "@clerk/nextjs/server";
 
 import { AccountCard } from "./_components/account-card";
 import { CreateAccountDrawer } from "@/components/create-account-drawer";
@@ -11,13 +13,13 @@ import { DashboardOverview } from "./_components/transaction-overview";
 import { GoalsCard } from "./_components/goals-card";
 import { Card, CardContent } from "@/components/ui/card";
 import { Plus } from "lucide-react";
-import ChatBot from "@/components/ChatBot";
 import DashboardCharts from "./_components/dashboard-charts";
 import ReceiptScanner from "@/components/ReceiptScanner";
 import InvestmentWidget from "./_components/investment-widget";
 import DashboardHero from "./_components/dashboard-hero";
 import AiInsightsDashboard from "./_components/ai-insights-dashboard";
 import ExportButton from "@/components/ExportButton";
+import FraudDetectionWidget from "./_components/fraud-detection-widget";
 
 export default async function DashboardPage() {
   const [accounts, transactions, goals] = await Promise.all([
@@ -33,6 +35,10 @@ export default async function DashboardPage() {
   const defaultAccount = accounts?.find((a) => a.isDefault);
   let budgetData       = null;
   if (defaultAccount) budgetData = await getCurrentBudget(defaultAccount.id);
+
+  const { userId } = await auth();
+  const _user = await db.user.findUnique({ where: { clerkUserId: userId }, include: { settings: true } });
+  const upiId = _user?.settings?.upiId || null;
 
   // Serialise for client components
   const txForCharts = (transactions || []).map(t => ({
@@ -59,22 +65,23 @@ export default async function DashboardPage() {
   return (
     <div className="relative space-y-5">
 
-      {/* ── Page title row with Export button ── */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-5xl gradient-title">Dashboard</h1>
+      {/* ── Export button row ── */}
+      <div className="flex items-center justify-end animate-in fade-in slide-in-from-top-4 duration-500">
         <ExportButton />
       </div>
 
       {/* ── Hero: Net Worth + KPIs ── */}
-      <DashboardHero
-        accounts={accsForHero}
-        transactions={txForCharts}
-        financeScore={financeScore?.score ?? null}
-        budgetData={budgetForHero}
-      />
+      <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <DashboardHero
+          accounts={accsForHero}
+          transactions={txForCharts}
+          financeScore={financeScore?.score ?? null}
+          budgetData={budgetForHero}
+        />
+      </div>
 
       {/* ── Main 2-col grid: Investment + Budget ── */}
-      <div className="grid gap-5 lg:grid-cols-5">
+      <div className="grid gap-5 lg:grid-cols-5 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-150 fill-mode-both">
         {/* Investment — takes 3 columns */}
         <div className="lg:col-span-3">
           <InvestmentWidget />
@@ -90,14 +97,23 @@ export default async function DashboardPage() {
       </div>
 
       {/* ── Financial Charts (full width) ── */}
-      <DashboardCharts transactions={txForCharts} />
+      <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 delay-300 fill-mode-both">
+        <DashboardCharts transactions={txForCharts} />
+      </div>
 
       {/* ── AI Insights: Anomaly Detection + Spending Personality ── */}
-      <AiInsightsDashboard />
+      <div className="animate-in fade-in zoom-in-95 duration-700 delay-[400ms] fill-mode-both">
+        <AiInsightsDashboard />
+      </div>
+
+      {/* ── Fraud Detection ── */}
+      <div className="animate-in fade-in zoom-in-95 duration-700 delay-[500ms] fill-mode-both">
+        <FraudDetectionWidget />
+      </div>
 
       {/* ── Goals + Accounts (side by side if goals exist) ── */}
       {goals && goals.length > 0 ? (
-        <div className="grid gap-5 lg:grid-cols-2">
+        <div className="grid gap-5 lg:grid-cols-2 animate-in fade-in slide-in-from-bottom-6 duration-700 delay-[600ms] fill-mode-both">
           <GoalsCard goals={goals} />
           <div className="space-y-4">
             <div className="grid gap-4 grid-cols-1">
@@ -116,7 +132,7 @@ export default async function DashboardPage() {
           </div>
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 animate-in fade-in slide-in-from-bottom-6 duration-700 delay-[600ms] fill-mode-both">
           <CreateAccountDrawer>
             <Card className="hover:shadow-md transition-shadow cursor-pointer border-dashed">
               <CardContent className="flex flex-col items-center justify-center text-muted-foreground h-full pt-5">
@@ -132,14 +148,14 @@ export default async function DashboardPage() {
       )}
 
       {/* ── Transaction Overview ── */}
-      <DashboardOverview accounts={accounts} transactions={transactions || []} />
-
-      {/* ── Receipt Scanner ── */}
-      <div className="max-w-lg">
-        <ReceiptScanner />
+      <div className="animate-in fade-in slide-in-from-bottom-6 duration-700 delay-[700ms] fill-mode-both">
+        <DashboardOverview accounts={accounts} transactions={transactions || []} upiId={upiId} />
       </div>
 
-      <ChatBot />
+      {/* ── Receipt Scanner ── */}
+      <div className="max-w-lg animate-in fade-in slide-in-from-right-8 duration-700 delay-[800ms] fill-mode-both">
+        <ReceiptScanner />
+      </div>
     </div>
   );
 }
