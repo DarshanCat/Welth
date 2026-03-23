@@ -1,95 +1,90 @@
 "use client";
 
-import { ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, Wallet } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useEffect } from "react";
 import useFetch from "@/hooks/use-fetch";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import Link from "next/link";
 import { updateDefaultAccount } from "@/actions/account";
 import { toast } from "sonner";
 
-// ✅ INR formatter
-const formatINR = (amount) =>
-  new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 2,
-  }).format(amount);
+const fmt = (n) =>
+  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n ?? 0);
 
 export function AccountCard({ account }) {
   const { name, type, balance, id, isDefault } = account;
 
-  const {
-    loading: updateDefaultLoading,
-    fn: updateDefaultFn,
-    data: updatedAccount,
-    error,
-  } = useFetch(updateDefaultAccount);
+  const { loading, fn: updateDefaultFn, data: updatedAccount, error } = useFetch(updateDefaultAccount);
 
-  const handleDefaultChange = async (event) => {
-    event.preventDefault();
-
-    if (isDefault) {
-      toast.warning("You need at least 1 default account");
-      return;
-    }
-
+  const handleDefaultChange = async (e) => {
+    e.preventDefault();
+    if (isDefault) { toast.warning("Need at least 1 default account"); return; }
     await updateDefaultFn(id);
   };
 
   useEffect(() => {
-    if (updatedAccount?.success) {
-      toast.success("Default account updated successfully");
-    }
+    if (updatedAccount?.success) toast.success("Default account updated");
   }, [updatedAccount]);
 
   useEffect(() => {
-    if (error) {
-      toast.error(error.message || "Failed to update default account");
-    }
+    if (error) toast.error(error.message || "Failed to update");
   }, [error]);
 
+  const typeColor = type === "SAVINGS" ? "#34d399" : "#60a5fa";
+
   return (
-    <Card className="hover:shadow-md transition-shadow group relative">
-      <Link href={`/account/${id}`}>
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium capitalize">
-            {name}
-          </CardTitle>
-          <Switch
-            checked={isDefault}
-            onClick={handleDefaultChange}
-            disabled={updateDefaultLoading}
-          />
-        </CardHeader>
+    <div style={{
+      background: "rgba(255,255,255,.025)",
+      border: "1px solid rgba(255,255,255,.07)",
+      borderRadius: 16, overflow: "hidden",
+      transition: "border-color .2s, transform .2s",
+      cursor: "pointer",
+    }}
+    onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,.14)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
+    onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,.07)"; e.currentTarget.style.transform = "translateY(0)"; }}>
+      <Link href={`/account/${id}`} style={{ textDecoration: "none", display: "block", padding: "16px 18px" }}>
 
-        <CardContent>
-          <div className="text-2xl font-bold">
-            {formatINR(parseFloat(balance))}
+        {/* Top row */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 9,
+              background: `${typeColor}15`, border: `1px solid ${typeColor}30`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <Wallet size={14} style={{ color: typeColor }}/>
+            </div>
+            <div>
+              <p style={{ fontSize: ".78rem", fontWeight: 700, color: "#f1f5f9", margin: 0 }}>{name}</p>
+              <p style={{ fontSize: ".62rem", color: "#64748b", margin: 0 }}>
+                {type.charAt(0) + type.slice(1).toLowerCase()} Account
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-muted-foreground">
-            {type.charAt(0) + type.slice(1).toLowerCase()} Account
-          </p>
-        </CardContent>
+          <div onClick={e => e.preventDefault()}>
+            <Switch checked={isDefault} onClick={handleDefaultChange} disabled={loading}/>
+          </div>
+        </div>
 
-        <CardFooter className="flex justify-between text-sm text-muted-foreground">
-          <div className="flex items-center">
-            <ArrowUpRight className="mr-1 h-4 w-4 text-green-500" />
-            Income
+        {/* Balance */}
+        <p style={{ fontSize: "1.3rem", fontWeight: 900, color: "#f1f5f9", margin: "0 0 12px",
+          fontFamily: "'Sora', sans-serif" }}>
+          {fmt(parseFloat(balance))}
+        </p>
+
+        {/* Footer */}
+        <div style={{ display: "flex", justifyContent: "space-between",
+          paddingTop: 10, borderTop: "1px solid rgba(255,255,255,.05)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <ArrowUpRight size={12} style={{ color: "#34d399" }}/>
+            <span style={{ fontSize: ".68rem", color: "#64748b" }}>Income</span>
           </div>
-          <div className="flex items-center">
-            <ArrowDownRight className="mr-1 h-4 w-4 text-red-500" />
-            Expense
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <ArrowDownRight size={12} style={{ color: "#f87171" }}/>
+            <span style={{ fontSize: ".68rem", color: "#64748b" }}>Expense</span>
           </div>
-        </CardFooter>
+        </div>
       </Link>
-    </Card>
+    </div>
   );
 }

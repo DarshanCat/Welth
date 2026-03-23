@@ -11,8 +11,6 @@ import { CreateAccountDrawer } from "@/components/create-account-drawer";
 import { BudgetProgress } from "./_components/budget-progress";
 import { DashboardOverview } from "./_components/transaction-overview";
 import { GoalsCard } from "./_components/goals-card";
-import { Card, CardContent } from "@/components/ui/card";
-import { Plus } from "lucide-react";
 import DashboardCharts from "./_components/dashboard-charts";
 import ReceiptScanner from "@/components/ReceiptScanner";
 import InvestmentWidget from "./_components/investment-widget";
@@ -20,6 +18,7 @@ import DashboardHero from "./_components/dashboard-hero";
 import AiInsightsDashboard from "./_components/ai-insights-dashboard";
 import ExportButton from "@/components/ExportButton";
 import FraudDetectionWidget from "./_components/fraud-detection-widget";
+import { Plus, Wallet } from "lucide-react";
 
 export default async function DashboardPage() {
   const [accounts, transactions, goals] = await Promise.all([
@@ -28,33 +27,25 @@ export default async function DashboardPage() {
     getUserGoals(),
   ]);
 
-  // ── Redirect new users to onboarding ──────────────────────────────────────
   if (!accounts || accounts.length === 0) redirect("/onboarding");
 
   const financeScore   = await getFinanceScore();
   const defaultAccount = accounts?.find((a) => a.isDefault);
-  let budgetData       = null;
+  let budgetData = null;
   if (defaultAccount) budgetData = await getCurrentBudget(defaultAccount.id);
 
   const { userId } = await auth();
   const _user = await db.user.findUnique({ where: { clerkUserId: userId }, include: { settings: true } });
   const upiId = _user?.settings?.upiId || null;
 
-  // Serialise for client components
   const txForCharts = (transactions || []).map(t => ({
-    id:       t.id,
-    type:     t.type,
-    amount:   Number(t.amount),
-    category: t.category,
-    date:     t.date?.toISOString?.() ?? String(t.date),
+    id: t.id, type: t.type, amount: Number(t.amount),
+    category: t.category, date: t.date?.toISOString?.() ?? String(t.date),
   }));
 
   const accsForHero = (accounts || []).map(a => ({
-    id:        a.id,
-    name:      a.name,
-    type:      a.type,
-    balance:   Number(a.balance),
-    isDefault: a.isDefault,
+    id: a.id, name: a.name, type: a.type,
+    balance: Number(a.balance), isDefault: a.isDefault,
   }));
 
   const budgetForHero = budgetData ? {
@@ -63,15 +54,32 @@ export default async function DashboardPage() {
   } : null;
 
   return (
-    <div className="relative space-y-5">
+    <div style={{ paddingTop: 24, paddingBottom: 48 }}>
 
-      {/* ── Export button row ── */}
-      <div className="flex items-center justify-end animate-in fade-in slide-in-from-top-4 duration-500">
-        <ExportButton />
-      </div>
+      {/* ── SECTION 1: Page title row + Hero ── */}
+      <div style={{
+        background:   "linear-gradient(180deg, rgba(16,185,129,.06) 0%, rgba(6,182,212,.03) 50%, transparent 100%)",
+        border:       "1px solid rgba(52,211,153,.1)",
+        borderRadius: 24, padding: "24px 28px 28px",
+        marginBottom: 16,
+      }}>
+        {/* Title + Export */}
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: 20 }}>
+          <div>
+            <h1 style={{
+              fontSize: "clamp(1.5rem,3vw,2rem)", fontWeight: 900, margin: 0,
+              background: "linear-gradient(135deg,#f1f5f9 0%,#94a3b8 100%)",
+              WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+              fontFamily: "'Sora',sans-serif",
+            }}>Dashboard</h1>
+            <p style={{ fontSize:".75rem", color:"#475569", margin:"4px 0 0" }}>
+              {new Date().toLocaleDateString("en-IN", { weekday:"long", day:"numeric", month:"long", year:"numeric" })}
+            </p>
+          </div>
+          <ExportButton />
+        </div>
 
-      {/* ── Hero: Net Worth + KPIs ── */}
-      <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+        {/* Hero KPIs */}
         <DashboardHero
           accounts={accsForHero}
           transactions={txForCharts}
@@ -80,82 +88,81 @@ export default async function DashboardPage() {
         />
       </div>
 
-      {/* ── Main 2-col grid: Investment + Budget ── */}
-      <div className="grid gap-5 lg:grid-cols-5 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-150 fill-mode-both">
-        {/* Investment — takes 3 columns */}
-        <div className="lg:col-span-3">
-          <InvestmentWidget />
-        </div>
-
-        {/* Budget — takes 2 columns */}
-        <div className="lg:col-span-2">
-          <BudgetProgress
-            initialBudget={budgetData?.budget}
-            currentExpenses={budgetData?.currentExpenses || 0}
-          />
-        </div>
+      {/* ── SECTION 2: Investment + Budget ── */}
+      <div style={{ display:"grid", gridTemplateColumns:"3fr 2fr", gap:16, marginBottom:16 }}>
+        <InvestmentWidget />
+        <BudgetProgress
+          initialBudget={budgetData?.budget}
+          currentExpenses={budgetData?.currentExpenses || 0}
+        />
       </div>
 
-      {/* ── Financial Charts (full width) ── */}
-      <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 delay-300 fill-mode-both">
+      {/* ── SECTION 3: Charts ── */}
+      <div style={{ marginBottom:16 }}>
         <DashboardCharts transactions={txForCharts} />
       </div>
 
-      {/* ── AI Insights: Anomaly Detection + Spending Personality ── */}
-      <div className="animate-in fade-in zoom-in-95 duration-700 delay-[400ms] fill-mode-both">
+      {/* ── SECTION 4: AI Insights + Fraud ── */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16 }}>
         <AiInsightsDashboard />
-      </div>
-
-      {/* ── Fraud Detection ── */}
-      <div className="animate-in fade-in zoom-in-95 duration-700 delay-[500ms] fill-mode-both">
         <FraudDetectionWidget />
       </div>
 
-      {/* ── Goals + Accounts (side by side if goals exist) ── */}
-      {goals && goals.length > 0 ? (
-        <div className="grid gap-5 lg:grid-cols-2 animate-in fade-in slide-in-from-bottom-6 duration-700 delay-[600ms] fill-mode-both">
+      {/* ── SECTION 5: Goals + Accounts ── */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16 }}>
+        {goals && goals.length > 0 ? (
           <GoalsCard goals={goals} />
-          <div className="space-y-4">
-            <div className="grid gap-4 grid-cols-1">
-              <CreateAccountDrawer>
-                <Card className="hover:shadow-md transition-shadow cursor-pointer border-dashed">
-                  <CardContent className="flex flex-col items-center justify-center text-muted-foreground h-full pt-5">
-                    <Plus className="h-10 w-10 mb-2" />
-                    <p className="text-sm font-medium">Add New Account</p>
-                  </CardContent>
-                </Card>
-              </CreateAccountDrawer>
-              {accounts.slice(0, 2).map((account) => (
-                <AccountCard key={account.id} account={account} />
-              ))}
-            </div>
+        ) : (
+          <div style={{
+            background:"rgba(255,255,255,.025)", border:"1px solid rgba(255,255,255,.07)",
+            borderRadius:20, padding:"32px 20px", textAlign:"center",
+          }}>
+            <p style={{ fontSize:"2rem", margin:"0 0 10px" }}>🎯</p>
+            <p style={{ color:"#f1f5f9", fontWeight:700, margin:"0 0 6px" }}>No goals yet</p>
+            <p style={{ color:"#64748b", fontSize:".78rem", margin:0 }}>Add savings goals to track progress</p>
           </div>
-        </div>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 animate-in fade-in slide-in-from-bottom-6 duration-700 delay-[600ms] fill-mode-both">
+        )}
+
+        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:2 }}>
+            <Wallet size={14} style={{ color:"#60a5fa" }}/>
+            <span style={{ fontSize:".7rem", fontWeight:700, color:"#64748b",
+              textTransform:"uppercase", letterSpacing:".06em" }}>Your Accounts</span>
+          </div>
           <CreateAccountDrawer>
-            <Card className="hover:shadow-md transition-shadow cursor-pointer border-dashed">
-              <CardContent className="flex flex-col items-center justify-center text-muted-foreground h-full pt-5">
-                <Plus className="h-10 w-10 mb-2" />
-                <p className="text-sm font-medium">Add New Account</p>
-              </CardContent>
-            </Card>
+            <div className="add-account-hover" style={{
+              background:"rgba(255,255,255,.02)",
+              border:"1px dashed rgba(255,255,255,.12)",
+              borderRadius:16, padding:"16px 18px",
+              display:"flex", alignItems:"center", justifyContent:"center",
+              gap:8, cursor:"pointer",
+            }}>
+              <div style={{
+                width:28, height:28, borderRadius:"50%",
+                background:"rgba(52,211,153,.12)", border:"1px solid rgba(52,211,153,.25)",
+                display:"flex", alignItems:"center", justifyContent:"center",
+              }}>
+                <Plus size={14} style={{ color:"#34d399" }}/>
+              </div>
+              <span style={{ fontSize:".78rem", color:"#64748b", fontWeight:600 }}>Add New Account</span>
+            </div>
           </CreateAccountDrawer>
-          {accounts.map((account) => (
+          {accounts.slice(0, 3).map((account) => (
             <AccountCard key={account.id} account={account} />
           ))}
         </div>
-      )}
+      </div>
 
-      {/* ── Transaction Overview ── */}
-      <div className="animate-in fade-in slide-in-from-bottom-6 duration-700 delay-[700ms] fill-mode-both">
+      {/* ── SECTION 6: Transactions ── */}
+      <div style={{ marginBottom:16 }}>
         <DashboardOverview accounts={accounts} transactions={transactions || []} upiId={upiId} />
       </div>
 
-      {/* ── Receipt Scanner ── */}
-      <div className="max-w-lg animate-in fade-in slide-in-from-right-8 duration-700 delay-[800ms] fill-mode-both">
+      {/* ── SECTION 7: Receipt Scanner ── */}
+      <div style={{ maxWidth:560 }}>
         <ReceiptScanner />
       </div>
+
     </div>
   );
 }

@@ -366,7 +366,7 @@ export default function ChatBot() {
       {/* ── Trigger pill ── */}
       <button onClick={() => setIsOpen(v => !v)}
         style={{
-          position: "fixed", top: "4.8rem", right: "1.25rem", zIndex: 9999,
+          position: "fixed", bottom: "2rem", right: "2rem", zIndex: 9999,
           display: "flex", alignItems: "center", gap: 7,
           padding: "8px 16px 8px 10px", borderRadius: 9999,
           background: isOpen ? "linear-gradient(135deg,#065f46,#047857)" : "rgba(3,7,18,.88)",
@@ -385,13 +385,13 @@ export default function ChatBot() {
 
       {/* ── Panel ── */}
       <div style={{
-        position: "fixed", top: "8rem", right: "1.25rem", zIndex: 9998,
-        width: "23rem", maxWidth: "calc(100vw - 2rem)", height: "36rem",
+        position: "fixed", bottom: "5.5rem", right: "2rem", zIndex: 9998,
+        width: "23rem", maxWidth: "calc(100vw - 2rem)", height: "36rem", maxHeight: "calc(100vh - 8rem)",
         background: "rgba(5,13,27,.97)", border: "1px solid rgba(52,211,153,.18)",
         borderRadius: "1.25rem", boxShadow: "0 30px 70px rgba(0,0,0,.65),0 0 40px rgba(16,185,129,.06)",
         display: "flex", flexDirection: "column", overflow: "hidden",
         opacity: isOpen ? 1 : 0,
-        transform: isOpen ? "translateY(0) scale(1)" : "translateY(-14px) scale(.96)",
+        transform: isOpen ? "translateY(0) scale(1)" : "translateY(14px) scale(.96)",
         pointerEvents: isOpen ? "auto" : "none",
         transition: "opacity .22s ease,transform .22s ease",
         backdropFilter: "blur(24px)",

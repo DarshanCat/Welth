@@ -51,30 +51,35 @@ export function AddTransactionForm({
   const type        = watch("type");
 
   useEffect(() => {
-    if (!description || description.length < 4) { setAiCatSuggestion(null); return; }
+    if (!description || description.length < 3) { 
+      setAiCatSuggestion(null); 
+      return; 
+    }
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       setAiCatLoading(true);
       try {
-        // Try BART (HuggingFace) first — more accurate for vague descriptions
-        // Falls back to Groq if BART is unavailable
-        let res = await fetch("/api/hf/categorize", {
-          method:  "POST",
+        const res = await fetch("/api/ai/categorize", {
+          method: "POST",
           headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ description, amount, type }),
+          body: JSON.stringify({ description, amount, type }),
         });
-        if (!res.ok || (await res.clone().json().catch(() => ({}))).error) {
-          res = await fetch("/api/ai/categorize", {
-            method:  "POST",
-            headers: { "Content-Type": "application/json" },
-            body:    JSON.stringify({ description, amount, type }),
+        const data = await res.json();
+        
+        if (data.category && data.confidence > 70) {
+          setValue("category", data.category);
+          toast.success(`AI securely categorised as ${data.category}`, {
+            id: 'ai-category-toast',
+            icon: <Sparkles className="w-4 h-4 text-violet-500" />
           });
         }
-        const data = await res.json();
-        if (data.category) setAiCatSuggestion(data);
-      } catch { /* silent */ } finally { setAiCatLoading(false); }
+      } catch {
+        /* silent */
+      } finally {
+        setAiCatLoading(false);
+      }
     }, 800);
-  }, [description, amount, type]);
+  }, [description, amount, type, setValue]);
 
   const {
     register,
@@ -241,15 +246,8 @@ export function AddTransactionForm({
           <label className="text-sm font-medium">Category</label>
           {aiCatLoading && (
             <span style={{ display:"flex", alignItems:"center", gap:4, fontSize:".68rem", color:"#a78bfa" }}>
-              <Loader2 size={10} style={{ animation:"spin 1s linear infinite" }}/> AI thinking…
+              <Loader2 size={10} style={{ animation:"spin 1s linear infinite" }}/> AI analyzing description…
             </span>
-          )}
-          {aiCatSuggestion && !aiCatLoading && (
-            <button type="button"
-              onClick={() => { setValue("category", aiCatSuggestion.category); setAiCatSuggestion(null); toast.success(`AI set category: ${aiCatSuggestion.category}`); }}
-              style={{ display:"flex", alignItems:"center", gap:5, padding:"3px 9px", borderRadius:9999, background:"rgba(167,139,250,.12)", border:"1px solid rgba(167,139,250,.3)", color:"#a78bfa", fontSize:".68rem", fontWeight:700, cursor:"pointer" }}>
-              <Sparkles size={10}/> AI: {aiCatSuggestion.category} ({aiCatSuggestion.confidence}%)
-            </button>
           )}
         </div>
         <Select

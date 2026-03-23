@@ -1,30 +1,29 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/prisma";
+import yahooFinance from "yahoo-finance2";
 
 // ── Fetch live price from Yahoo Finance ──────────────────────────────────────
 async function fetchStockPrice(symbol, exchange = "NSE") {
   try {
     const ticker = exchange === "NSE" ? `${symbol}.NS` : exchange === "BSE" ? `${symbol}.BO` : symbol;
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=5d`;
-    const res = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
-      next: { revalidate: 300 }, // cache 5 mins
-    });
-    const data = await res.json();
-    const meta = data?.chart?.result?.[0]?.meta;
-    if (!meta) return null;
+    
+    // Attempt to fetch quote using the reliable yahoo-finance2 library
+    const quote = await yahooFinance.quote(ticker);
+    if (!quote) return null;
+
     return {
-      price:        meta.regularMarketPrice,
-      prevClose:    meta.chartPreviousClose || meta.previousClose,
-      change:       meta.regularMarketPrice - (meta.chartPreviousClose || meta.previousClose),
-      changePct:    ((meta.regularMarketPrice - (meta.chartPreviousClose || meta.previousClose)) / (meta.chartPreviousClose || meta.previousClose)) * 100,
-      currency:     meta.currency,
-      marketState:  meta.marketState,
-      high52:       meta.fiftyTwoWeekHigh,
-      low52:        meta.fiftyTwoWeekLow,
+      price:        quote.regularMarketPrice,
+      prevClose:    quote.regularMarketPreviousClose,
+      change:       quote.regularMarketChange,
+      changePct:    quote.regularMarketChangePercent,
+      currency:     quote.currency,
+      marketState:  quote.marketState,
+      high52:       quote.fiftyTwoWeekHigh,
+      low52:        quote.fiftyTwoWeekLow,
     };
-  } catch {
+  } catch (err) {
+    console.error(`[yahoo-finance2 error fetching ${symbol}]`, err.message);
     return null;
   }
 }

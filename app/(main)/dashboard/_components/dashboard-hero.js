@@ -55,7 +55,7 @@ export default function DashboardHero({ accounts = [], transactions = [], financ
   const monthLabel = now.toLocaleString("en-IN", { month: "long", year: "numeric" });
 
   return (
-    <div style={{ marginBottom: 24 }}>
+    <div style={{ marginBottom: 0 }}>
       {/* ── Greeting + Net Worth ───────────────────────────────────────────── */}
       <div style={{
         background: "linear-gradient(135deg, rgba(16,185,129,.08) 0%, rgba(52,211,153,.04) 50%, rgba(6,182,212,.06) 100%)",

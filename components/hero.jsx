@@ -38,7 +38,7 @@ const HeroSection = () => {
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "radial-gradient(ellipse 80% 50% at 50% -10%, rgba(52,211,153,0.18) 0%, transparent 70%), radial-gradient(ellipse 60% 40% at 80% 80%, rgba(99,102,241,0.12) 0%, transparent 60%)",
+            "radial-gradient(ellipse 80% 50% at 50% -10%, rgba(139,92,246,0.18) 0%, transparent 70%), radial-gradient(ellipse 60% 40% at 80% 80%, rgba(192,38,211,0.12) 0%, transparent 60%)",
         }}
       />
 
@@ -47,7 +47,7 @@ const HeroSection = () => {
         className="pointer-events-none absolute inset-0 opacity-20"
         style={{
           backgroundImage:
-            "linear-gradient(rgba(52,211,153,0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(52,211,153,0.15) 1px, transparent 1px)",
+            "linear-gradient(rgba(139,92,246,0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(139,92,246,0.15) 1px, transparent 1px)",
           backgroundSize: "60px 60px",
           maskImage:
             "radial-gradient(ellipse 80% 70% at 50% 50%, black 30%, transparent 80%)",
@@ -62,12 +62,12 @@ const HeroSection = () => {
           style={{
             width: `${4 + i * 2}px`,
             height: `${4 + i * 2}px`,
-            background: `rgba(52,211,153,${0.3 + i * 0.05})`,
+            background: `rgba(167,139,250,${0.3 + i * 0.05})`,
             left: `${10 + i * 15}%`,
             top: `${20 + (i % 3) * 25}%`,
             animation: `float ${3 + i}s ease-in-out infinite alternate`,
             animationDelay: `${i * 0.5}s`,
-            boxShadow: `0 0 ${8 + i * 4}px rgba(52,211,153,0.4)`,
+            boxShadow: `0 0 ${8 + i * 4}px rgba(167,139,250,0.4)`,
           }}
         />
       ))}
@@ -77,14 +77,14 @@ const HeroSection = () => {
         <span
           className="inline-flex items-center gap-2 text-xs font-semibold tracking-widest uppercase px-4 py-2 rounded-full"
           style={{
-            background: "rgba(52,211,153,0.12)",
-            border: "1px solid rgba(52,211,153,0.35)",
-            color: "#34d399",
+            background: "rgba(167,139,250,0.12)",
+            border: "1px solid rgba(167,139,250,0.35)",
+            color: "#a78bfa",
           }}
         >
           <span
             className="w-1.5 h-1.5 rounded-full"
-            style={{ background: "#34d399", boxShadow: "0 0 6px #34d399" }}
+            style={{ background: "#a78bfa", boxShadow: "0 0 6px #a78bfa" }}
           />
           AI-Powered Finance Platform
         </span>
@@ -95,22 +95,21 @@ const HeroSection = () => {
         className="text-center font-black leading-none tracking-tight mb-6 max-w-5xl"
         style={{
           fontSize: "clamp(2.8rem, 8vw, 7rem)",
-          fontFamily: "'Sora', sans-serif",
           transform: `translate(${mousePos.x * 0.015}px, ${mousePos.y * 0.01}px)`,
           transition: "transform 0.3s ease",
         }}
       >
         {/* Solid white — guaranteed visible on any dark bg */}
-        <span style={{ color: "#f1f5f9" }}>
+        <span style={{ color: "#f8fafc" }}>
           Manage Your Finances
         </span>
         <br />
         <span
           style={{
-            background: "linear-gradient(135deg, #34d399 0%, #059669 50%, #6ee7b7 100%)",
+            background: "linear-gradient(135deg, #a78bfa 0%, #c026d3 50%, #f472b6 100%)",
             WebkitBackgroundClip: "text",
             WebkitTextFillColor: "transparent",
-            filter: "drop-shadow(0 0 40px rgba(52,211,153,0.3))",
+            filter: "drop-shadow(0 0 40px rgba(167,139,250,0.3))",
           }}
         >
           with Intelligence
@@ -119,11 +118,10 @@ const HeroSection = () => {
 
       {/* Subheading */}
       <p
-        className="text-center max-w-xl mb-10 leading-relaxed"
+        className="text-center max-w-xl mb-10 leading-relaxed font-medium"
         style={{
-          color: "#94a3b8",
+          color: "#cbd5e1",
           fontSize: "clamp(1rem, 2vw, 1.2rem)",
-          fontFamily: "'DM Sans', sans-serif",
         }}
       >
         An AI-powered financial platform that tracks, predicts, and optimises
@@ -135,12 +133,11 @@ const HeroSection = () => {
       <div className="flex flex-wrap justify-center gap-4 mb-16">
         <Link href="/dashboard">
           <button
-            className="relative inline-flex items-center gap-2 px-8 py-4 rounded-xl font-semibold text-sm overflow-hidden transition-all duration-300 hover:scale-105"
+            className="relative inline-flex items-center gap-2 px-8 py-4 rounded-xl font-semibold text-sm overflow-hidden transition-all duration-300 hover:scale-105 hover:-translate-y-0.5"
             style={{
-              background: "linear-gradient(135deg, #10b981, #059669)",
+              background: "linear-gradient(135deg, #8b5cf6, #c026d3)",
               color: "#fff",
-              fontFamily: "'Sora', sans-serif",
-              boxShadow: "0 0 30px rgba(16,185,129,0.4), 0 4px 20px rgba(0,0,0,0.3)",
+              boxShadow: "0 0 30px rgba(139,92,246,0.4), 0 4px 20px rgba(0,0,0,0.3)",
             }}
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -156,8 +153,7 @@ const HeroSection = () => {
             style={{
               background: "rgba(255,255,255,0.05)",
               border: "1px solid rgba(255,255,255,0.12)",
-              color: "#e2e8f0",
-              fontFamily: "'Sora', sans-serif",
+              color: "#f8fafc",
               backdropFilter: "blur(12px)",
             }}
           >
@@ -186,10 +182,10 @@ const HeroSection = () => {
           <div
             className="relative rounded-2xl overflow-hidden"
             style={{
-              background: "rgba(15,23,42,0.8)",
-              border: "1px solid rgba(52,211,153,0.25)",
+              background: "rgba(5, 5, 10, 0.8)",
+              border: "1px solid rgba(167,139,250,0.25)",
               boxShadow:
-                "0 0 0 1px rgba(52,211,153,0.1), 0 40px 80px rgba(0,0,0,0.6), 0 0 100px rgba(52,211,153,0.1)",
+                "0 0 0 1px rgba(139,92,246,0.1), 0 40px 80px rgba(0,0,0,0.6), 0 0 100px rgba(192,38,211,0.15)",
             }}
           >
             {/* Browser chrome bar */}
@@ -238,7 +234,6 @@ const HeroSection = () => {
       </div>
 
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800;900&family=DM+Sans:wght@400;500&display=swap');
         @keyframes float {
           from { transform: translateY(0px) scale(1); }
           to   { transform: translateY(-18px) scale(1.1); }

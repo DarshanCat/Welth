@@ -127,3 +127,10 @@ body {
   background: linear-gradient(135deg, #34d399 0%, #059669 50%, #6ee7b7 100%);
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
 }
+/* ── Dashboard hover utilities ── */
+.add-account-hover {
+  transition: border-color .2s;
+}
+.add-account-hover:hover {
+  border-color: rgba(52,211,153,.35) !important;
+}

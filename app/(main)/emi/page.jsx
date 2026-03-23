@@ -323,7 +323,7 @@ export default function EmiPage() {
     } finally { setMutating(false); }
   };
 
-  const totalMissed  = loans.reduce((s, l) => s + l.stats.missed, 0);
+  const totalMissed  = loans.reduce((s, l) => s + (l.stats?.missed ?? 0), 0);
   const totalMonthly = loans.filter(l => l.status === "ACTIVE").reduce((s, l) => s + l.emiAmount, 0);
 
   return (
@@ -526,7 +526,7 @@ export default function EmiPage() {
                 { label: "Total Loans",    val: loans.length,        color: "#60a5fa", fmt: v => v },
                 { label: "Monthly EMIs",   val: totalMonthly,        color: "#fbbf24", fmt: fmt },
                 { label: "Missed EMIs",    val: totalMissed,         color: totalMissed > 0 ? "#f87171" : "#34d399", fmt: v => v },
-                { label: "Total Owed",     val: loans.reduce((s,l) => s + l.stats.remaining, 0), color: "#a78bfa", fmt: fmt },
+                { label: "Total Owed",     val: loans.reduce((s,l) => s + l.stats?.remaining ?? 0, 0), color: "#a78bfa", fmt: fmt },
               ].map(s => (
                 <div key={s.label} style={{ background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.07)", borderRadius: 14, padding: "10px 12px", textAlign: "center" }}>
                   <p style={{ fontSize: ".68rem", color: "#64748b", margin: 0 }}>{s.label}</p>

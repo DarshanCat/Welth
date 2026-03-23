@@ -49,11 +49,12 @@ async function getUserContext(userId) {
   const threeMonthsAgo = new Date();
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
 
-  const [transactions, budget, goals, accounts] = await Promise.all([
+  const [transactions, budget, goals, accounts, holdings] = await Promise.all([
     db.transaction.findMany({ where: { userId, date: { gte: threeMonthsAgo } } }),
     db.budget.findFirst({ where: { userId } }),
     db.goal.findMany({ where: { userId } }),
     db.account.findMany({ where: { userId } }),
+    db.holding.findMany({ where: { userId } }),
   ]);
 
   const income  = transactions.filter(t => t.type === "INCOME").reduce((s, t) => s + Number(t.amount), 0);
@@ -71,9 +72,14 @@ async function getUserContext(userId) {
   const topSpend = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 4)
     .map(([c, a]) => `${c}(${fmt(a)})`).join(", ");
 
+  const portfolioSummary = holdings.length > 0
+    ? holdings.map(h => `${h.symbol} (${h.quantity} units @ ${h.avgBuyPrice})`).join(", ")
+    : "No investments yet";
+
   return {
     income, expense, savings, savingsRate,
     monthlyIncome, monthlySavings, totalBalance,
+    portfolioSummary,
     budget: budget ? Number(budget.amount) : null,
     goalsCount: goals.length,
     topSpend,
@@ -91,6 +97,7 @@ async function getInvestmentAdvice(query, ctx, riskProfile = "moderate") {
   const prompt = `You are CA Arjun, a SEBI-registered investment advisor and Chartered Accountant in India. You give specific, actionable Indian investment advice.
 
 CLIENT PROFILE:
+- Portfolio:         ${ctx.portfolioSummary}
 - Monthly Income:    ${fmt(ctx.monthlyIncome)}
 - Monthly Savings:   ${fmt(ctx.monthlySavings)} (${ctx.savingsRate}% rate)
 - Available to invest: ${fmt(ctx.investableMonthly)}/month
@@ -204,6 +211,7 @@ async function getCAAdvice(query, ctx, strictMode) {
 CLIENT DATA (3 months):
 - Income: ${fmt(ctx.income)} | Expenses: ${fmt(ctx.expense)} | Savings: ${fmt(ctx.savings)} (${ctx.savingsRate}%)
 - Balance: ${fmt(ctx.totalBalance)} | Budget: ${ctx.budget ? fmt(ctx.budget) + "/month" : "Not set"}
+- Portfolio: ${ctx.portfolioSummary}
 - Goals: ${ctx.goalsCount} active | Top spend: ${ctx.topSpend}
 
 Question: "${query}"

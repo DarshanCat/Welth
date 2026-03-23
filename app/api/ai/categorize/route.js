@@ -1,15 +1,17 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import Groq from "groq-sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const EXPENSE_CATEGORIES = [
-  "Housing","Transportation","Groceries","Utilities","Entertainment",
-  "Food","Shopping","Healthcare","Education","Personal Care",
-  "Travel","Insurance","Gifts & Donations","Bills & Fees","Other Expenses",
+  "Housing", "Transportation", "Groceries", "Utilities", "Entertainment",
+  "Food", "Shopping", "Healthcare", "Education", "Personal Care",
+  "Travel", "Insurance", "Gifts & Donations", "Bills & Fees", "Other Expenses",
 ];
-const INCOME_CATEGORIES = ["Salary","Freelance","Investments","Business","Rental","Other Income"];
+const INCOME_CATEGORIES = [
+  "Salary", "Freelance", "Investments", "Business", "Rental", "Other Income"
+];
 
 export async function POST(req) {
   try {
@@ -20,24 +22,21 @@ export async function POST(req) {
     if (!description) return NextResponse.json({ error: "No description" }, { status: 400 });
 
     const categories = type === "EXPENSE" ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    const res = await groq.chat.completions.create({
-      model: "llama-3.1-8b-instant",
-      max_tokens: 50,
-      messages: [{
-        role: "user",
-        content: `Categorize this Indian financial transaction.
+    const prompt = `Categorize this Indian financial transaction.
 Description: "${description}"
 Amount: ₹${amount || "unknown"}
 Type: ${type}
 Available categories: ${categories.join(", ")}
 
-Reply ONLY with JSON: {"category": "<exact category name>", "confidence": <0-100>, "reason": "<5 words max>"}`,
-      }],
-    });
+Map specific merchants to their logical category (e.g., "Starbucks" -> "Food" or "Dining").
+Reply ONLY with valid JSON exactly like this: {"category": "<exact category name>", "confidence": <0-100>, "reason": "<5 words max>"}`;
 
-    const raw = res.choices[0]?.message?.content?.trim();
-    const clean = raw.replace(/```json|```/g, "").trim();
+    const result = await model.generateContent(prompt);
+    const rawContent = (await result.response).text();
+
+    const clean = rawContent.replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(clean);
 
     // Validate category exists
@@ -50,4 +49,4 @@ Reply ONLY with JSON: {"category": "<exact category name>", "confidence": <0-100
     console.error("[ai/categorize]", err);
     return NextResponse.json({ error: "Categorization failed" }, { status: 500 });
   }
-}
+}
