@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import NLSearch from "@/components/NLSearch";
 import {
   ChevronDown,
   ChevronUp,
@@ -198,6 +199,7 @@ export function TransactionTable({ transactions }) {
 
   return (
     <div className="space-y-4">
+      <NLSearch onResults={(results) => { if (results) { setSearchTerm(""); } }} />
       {deleteLoading && (
         <BarLoader className="mt-4" width={"100%"} color="#9333ea" />
       )}

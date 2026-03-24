@@ -19,24 +19,30 @@ import AiInsightsDashboard from "./_components/ai-insights-dashboard";
 import ExportButton from "@/components/ExportButton";
 import FraudDetectionWidget from "./_components/fraud-detection-widget";
 import { Plus, Wallet } from "lucide-react";
+import SmartGoalsAI from "@/components/SmartGoalsAI";
+import NLSearch from "@/components/NLSearch";
 
 export default async function DashboardPage() {
-  const [accounts, transactions, goals] = await Promise.all([
+  // ── Parallel fetches — eliminates sequential waterfall ────────────────────
+  const { userId } = await auth();
+
+  const [accounts, transactions, goals, financeScore, userRecord] = await Promise.all([
     getUserAccounts(),
     getDashboardData(),
     getUserGoals(),
+    getFinanceScore(),
+    userId ? db.user.findUnique({
+      where:   { clerkUserId: userId },
+      include: { settings: true },
+    }) : Promise.resolve(null),
   ]);
 
   if (!accounts || accounts.length === 0) redirect("/onboarding");
 
-  const financeScore   = await getFinanceScore();
+  // Budget depends on defaultAccount — one extra fetch (unavoidable)
   const defaultAccount = accounts?.find((a) => a.isDefault);
-  let budgetData = null;
-  if (defaultAccount) budgetData = await getCurrentBudget(defaultAccount.id);
-
-  const { userId } = await auth();
-  const _user = await db.user.findUnique({ where: { clerkUserId: userId }, include: { settings: true } });
-  const upiId = _user?.settings?.upiId || null;
+  const budgetData     = defaultAccount ? await getCurrentBudget(defaultAccount.id) : null;
+  const upiId          = userRecord?.settings?.upiId || null;
 
   const txForCharts = (transactions || []).map(t => ({
     id: t.id, type: t.type, amount: Number(t.amount),
@@ -111,7 +117,7 @@ export default async function DashboardPage() {
       {/* ── SECTION 5: Goals + Accounts ── */}
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16 }}>
         {goals && goals.length > 0 ? (
-          <GoalsCard goals={goals} />
+          <SmartGoalsAI />
         ) : (
           <div style={{
             background:"rgba(255,255,255,.025)", border:"1px solid rgba(255,255,255,.07)",

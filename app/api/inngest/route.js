@@ -8,6 +8,16 @@ import {
   triggerRecurringTransactions,
   generateOffersAlerts,
   detectSubscriptionLeaks,
+    smartBudgetVelocityAlert,
+    salaryDepletionWarning,
+    goalMilestoneAlert,
+    unusualSpendingAlert,
+    debtRatioAlert,
+  smartBudgetVelocityAlert,
+  salaryDepletionWarning,
+  goalMilestoneAlert,
+  unusualSpendingAlert,
+  debtRatioAlert,
 } from "@/lib/inngest/function";
 
 export const { GET, POST, PUT } = serve({
@@ -19,5 +29,10 @@ export const { GET, POST, PUT } = serve({
     checkBudgetAlerts,
     generateOffersAlerts,
     detectSubscriptionLeaks,
+    smartBudgetVelocityAlert,
+    salaryDepletionWarning,
+    goalMilestoneAlert,
+    unusualSpendingAlert,
+    debtRatioAlert,
   ],
 });

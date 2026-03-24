@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   Calculator, Bell, Zap, Receipt, CreditCard,
   FileText, TrendingUp, Briefcase, PieChart,
-  ChevronDown, Wrench, Bot, Lightbulb,
+  ChevronDown, Wrench, Bot, Lightbulb, ShieldAlert,
 } from "lucide-react";
 
 const TOOLS = [
@@ -20,6 +20,7 @@ const TOOLS = [
   { href: "/ca-dashboard", icon: Briefcase,  label: "CA Report", color: "#fbbf24", desc: "CA Dashboard"       },
   { href: "/robo-advisor", icon: Bot,        label: "Robo AI",   color: "#34d399", desc: "Robo Advisor"       },
   { href: "/insights",     icon: Lightbulb,  label: "Insights",  color: "#f472b6", desc: "4 Real Problems"    },
+  { href: "/xai",          icon: ShieldAlert,label: "XAI",       color: "#f87171", desc: "Explain AI"         },
 ];
 
 export default function FinancialToolsDropdown() {
@@ -83,7 +84,7 @@ export default function FinancialToolsDropdown() {
               Financial Tools
             </p>
             <p style={{ fontSize: ".65rem", color: "#475569", margin: "2px 0 0" }}>
-              11 AI-powered tools
+              12 AI-powered tools
             </p>
           </div>
 

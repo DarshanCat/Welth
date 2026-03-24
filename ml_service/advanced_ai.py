@@ -654,491 +654,248 @@ def generate_trading_plan(req: TradingPlanRequest):
     }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ═════════════════════════════════════════════════════════════════════════════
-# 5. PORTFOLIO RISK ANALYTICS — VaR, Beta, Sharpe, EWMA Volatility
-#    Adapted from FinGPT Trader: models/portfolio/risk.py (RiskAnalyzer)
-# ═════════════════════════════════════════════════════════════════════════════
-
-class PortfolioRiskRequest(BaseModel):
-    holdings: List[dict]   # [{symbol, name, type, quantity, avgBuyPrice, investedAmt, currentPrice}]
-    total_invested: float
-
-def fetch_price_history_yahoo(symbol: str, exchange: str = "NSE", days: int = 252) -> Optional[List[float]]:
-    """Fetch historical closing prices from Yahoo Finance."""
-    try:
-        suffix   = ".NS" if exchange == "NSE" else ".BO" if exchange == "BSE" else ""
-        ticker   = f"{symbol}{suffix}"
-        url      = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=1y"
-        import requests as req_lib
-        resp     = req_lib.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=8)
-        data     = resp.json()
-        closes   = data["chart"]["result"][0]["indicators"]["quote"][0]["close"]
-        return [c for c in closes if c is not None]
-    except Exception:
-        return None
-
-def calc_sharpe(returns: np.ndarray, risk_free_annual: float = 0.065) -> float:
-    """Sharpe ratio (annualised). Risk-free = 6.5% (India repo rate approx)."""
-    if len(returns) < 2 or returns.std() == 0:
-        return 0.0
-    excess = returns - (risk_free_annual / 252)
-    return float((excess.mean() / returns.std()) * np.sqrt(252))
-
-def calc_var(returns: np.ndarray, confidence: float = 0.95) -> float:
-    """Historical VaR at confidence level."""
-    if len(returns) == 0:
-        return 0.0
-    return float(-np.percentile(returns, (1 - confidence) * 100))
-
-def calc_expected_shortfall(returns: np.ndarray, confidence: float = 0.95) -> float:
-    """Expected Shortfall (CVaR) — average loss beyond VaR."""
-    var = calc_var(returns, confidence)
-    tail = returns[returns <= -var]
-    return float(-tail.mean()) if len(tail) > 0 else var
-
-def calc_ewma_volatility(returns: np.ndarray, lambda_: float = 0.94) -> float:
-    """EWMA volatility (annualised) — JP Morgan RiskMetrics approach."""
-    if len(returns) < 2:
-        return 0.0
-    sq = returns ** 2
-    ewma_var = sq[0]
-    for r2 in sq[1:]:
-        ewma_var = lambda_ * ewma_var + (1 - lambda_) * r2
-    return float(np.sqrt(ewma_var * 252))
-
-def calc_beta(port_returns: np.ndarray, bench_returns: np.ndarray) -> float:
-    """Beta vs benchmark."""
-    min_len = min(len(port_returns), len(bench_returns))
-    if min_len < 5:
-        return 1.0
-    p, b = port_returns[-min_len:], bench_returns[-min_len:]
-    cov = np.cov(p, b)[0][1]
-    bench_var = np.var(b)
-    return float(cov / bench_var) if bench_var != 0 else 1.0
-
-def detect_market_regime(returns: np.ndarray) -> dict:
-    """Detect market regime from FinGPT MarketRegimeDetector logic."""
-    if len(returns) < 20:
-        return {"regime": "NORMAL", "color": "#34d399", "label": "Normal Market"}
-    vol = np.std(returns[-20:]) * np.sqrt(252)
-    if vol > 0.35:
-        return {"regime": "CRISIS",   "color": "#f87171", "label": "⚠ High Volatility / Crisis"}
-    if vol > 0.25:
-        return {"regime": "STRESS",   "color": "#f87171", "label": "⚡ Market Stress"}
-    if vol > 0.18:
-        return {"regime": "HIGH_VOL", "color": "#fbbf24", "label": "📈 Elevated Volatility"}
-    avg_ret = np.mean(returns[-60:]) if len(returns) >= 60 else np.mean(returns)
-    if avg_ret > 0.0003:
-        return {"regime": "BULL",     "color": "#34d399", "label": "🟢 Bull Market"}
-    if avg_ret < -0.0003:
-        return {"regime": "BEAR",     "color": "#f87171", "label": "🔴 Bear Market"}
-    return {"regime": "SIDEWAYS",     "color": "#fbbf24", "label": "↔ Sideways / Consolidation"}
-
-@app.post("/portfolio/risk")
-def portfolio_risk(req: PortfolioRiskRequest):
-    """
-    Portfolio Risk Analytics from FinGPT Trader RiskAnalyzer.
-    Calculates: VaR, Expected Shortfall, EWMA Volatility, Beta, Sharpe Ratio,
-    Concentration (Herfindahl), Max Drawdown, Market Regime, Tax-Loss Harvest alerts.
-    """
-    holdings = req.holdings
-    if not holdings:
-        raise HTTPException(400, "No holdings provided")
-
-    # Fetch Nifty50 as benchmark
-    nifty_prices = fetch_price_history_yahoo("^NSEI", "", 252)
-    nifty_returns = np.diff(np.log(nifty_prices)) if nifty_prices and len(nifty_prices) > 5 else np.array([])
-
-    # Fetch price history for each holding
-    holding_results = []
-    portfolio_returns = []
-    weights_list     = []
-    total_current    = sum(h.get("currentPrice", h.get("avgBuyPrice", 1)) * float(h.get("quantity", 0)) for h in holdings)
-
-    for h in holdings:
-        symbol      = h.get("symbol", "")
-        exchange    = h.get("exchange", "NSE")
-        qty         = float(h.get("quantity", 0))
-        avg_price   = float(h.get("avgBuyPrice", 1))
-        curr_price  = float(h.get("currentPrice", avg_price))
-        invested    = float(h.get("investedAmt", avg_price * qty))
-        current_val = curr_price * qty
-        gain_pct    = ((curr_price - avg_price) / avg_price * 100) if avg_price > 0 else 0
-
-        # Tax-loss harvesting alert (FinGPT TaxAwareStrategy: -5% threshold)
-        tax_loss_alert = None
-        if gain_pct <= -5.0:
-            tax_loss_alert = {
-                "alert": True,
-                "loss_pct": round(gain_pct, 2),
-                "message": f"Consider booking this ₹{abs(current_val - invested):,.0f} loss to offset capital gains tax",
-            }
-
-        # Price history
-        prices  = fetch_price_history_yahoo(symbol, exchange, 252)
-        returns = np.diff(np.log(prices)) if prices and len(prices) > 10 else None
-
-        per_holding = {
-            "symbol":     symbol,
-            "name":       h.get("name", symbol),
-            "invested":   round(invested, 2),
-            "currentVal": round(current_val, 2),
-            "gainPct":    round(gain_pct, 2),
-            "taxLossAlert": tax_loss_alert,
-        }
-
-        if returns is not None and len(returns) > 20:
-            weight = current_val / total_current if total_current > 0 else 0
-            per_holding["volatility"] = round(calc_ewma_volatility(returns) * 100, 2)
-            per_holding["sharpe"]     = round(calc_sharpe(returns), 2)
-            per_holding["var95"]      = round(calc_var(returns) * 100, 2)
-            portfolio_returns.append(returns)
-            weights_list.append(weight)
-
-        holding_results.append(per_holding)
-
-    # ── Portfolio-level risk ──────────────────────────────────────────────────
-    port_metrics = {}
-    if portfolio_returns and weights_list:
-        # Weighted portfolio returns
-        min_len  = min(len(r) for r in portfolio_returns)
-        port_ret = np.sum([portfolio_returns[i][-min_len:] * weights_list[i]
-                           for i in range(len(portfolio_returns))], axis=0)
-
-        port_metrics = {
-            "annualisedVol":      round(calc_ewma_volatility(port_ret) * 100, 2),
-            "var95":              round(calc_var(port_ret) * 100, 2),
-            "expectedShortfall":  round(calc_expected_shortfall(port_ret) * 100, 2),
-            "sharpe":             round(calc_sharpe(port_ret), 2),
-            "beta":               round(calc_beta(port_ret, nifty_returns) if len(nifty_returns) > 5 else 1.0, 2),
-            "concentration":      round(float(np.sum(np.array(weights_list) ** 2)), 3),  # Herfindahl index
-        }
-
-        # Max drawdown
-        cum = np.exp(np.cumsum(port_ret))
-        peak = np.maximum.accumulate(cum)
-        dd   = (peak - cum) / peak
-        port_metrics["maxDrawdown"] = round(float(np.max(dd)) * 100, 2)
-
-        # Market regime
-        port_metrics["marketRegime"] = detect_market_regime(port_ret)
-
-    # Tax-loss summary
-    tax_loss_alerts = [h["taxLossAlert"] for h in holding_results if h.get("taxLossAlert")]
-    potential_tax_saving = sum(abs(h["invested"] - h["currentVal"]) * 0.10
-                               for h in holding_results if h.get("gainPct", 0) <= -5.0)
-
-    return {
-        "holdings":         holding_results,
-        "portfolioMetrics": port_metrics,
-        "taxLossAlerts":    tax_loss_alerts,
-        "taxLossSaving":    round(potential_tax_saving, 2),
-        "model":            "FinGPT RiskAnalyzer (VaR+Beta+Sharpe+EWMA)",
-    }
-
 
 # ═════════════════════════════════════════════════════════════════════════════
-# 6. PORTFOLIO OPTIMIZER — Max Sharpe Ratio
-#    Adapted from FinGPT Trader: models/portfolio/optimization.py (PortfolioOptimizer)
+# 8. XAI DASHBOARD — Explainable AI for Fraud + Credit Score
+#    SHAP-style feature importance without the SHAP library overhead
 # ═════════════════════════════════════════════════════════════════════════════
 
-class PortfolioOptimizeRequest(BaseModel):
-    holdings: List[dict]   # [{symbol, name, exchange, investedAmt, currentPrice}]
-    risk_profile: str = "moderate"   # conservative | moderate | aggressive
+class XAIRequest(BaseModel):
+    transactions: List[dict]        # for fraud XAI
+    credit_features: Optional[dict] = None  # for credit score XAI
 
-@app.post("/portfolio/optimize")
-def portfolio_optimize(req: PortfolioOptimizeRequest):
+@app.post("/xai/explain")
+def xai_explain(req: XAIRequest):
     """
-    Max-Sharpe portfolio optimization from FinGPT PortfolioOptimizer.
-    Uses scipy SLSQP to find optimal allocation weights.
+    Explainable AI endpoint.
+    1) Fraud: for each flagged transaction, compute feature-level contribution
+       using manual perturbation (LIME-style) without SHAP dependency.
+    2) Credit Score: return CIBIL factor breakdown with individual weights.
     """
-    from scipy.optimize import minimize as sp_minimize
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.ensemble import IsolationForest
 
-    holdings = [h for h in req.holdings if h.get("symbol")]
-    if len(holdings) < 2:
-        raise HTTPException(400, "Need at least 2 holdings to optimize")
+    results = {}
 
-    # Fetch price histories
-    symbols  = []
-    ret_list = []
-    names    = {}
+    # ── FRAUD XAI ─────────────────────────────────────────────────────────────
+    if req.transactions and len(req.transactions) >= 5:
+        df = pd.DataFrame(req.transactions)
+        X  = build_features(df)
 
-    for h in holdings:
-        sym    = h["symbol"]
-        exc    = h.get("exchange", "NSE")
-        prices = fetch_price_history_yahoo(sym, exc, 365)
-        if prices and len(prices) > 30:
-            rets = np.diff(np.log(prices))
-            symbols.append(sym)
-            ret_list.append(rets)
-            names[sym] = h.get("name", sym)
+        scaler = StandardScaler()
+        Xs     = scaler.fit_transform(X)
 
-    if len(symbols) < 2:
-        raise HTTPException(422, "Insufficient price history for optimization")
+        ae        = train_autoencoder(Xs)
+        Xr        = ae.predict(Xs, verbose=0)
+        recon_err = np.mean(np.square(Xs - Xr), axis=1)
+        threshold = np.percentile(recon_err, 93)
 
-    # Align to same length
-    min_len = min(len(r) for r in ret_list)
-    rets_df = pd.DataFrame({s: ret_list[i][-min_len:] for i, s in enumerate(symbols)})
+        iso = IsolationForest(contamination=0.07, random_state=42, n_estimators=100)
+        iso.fit(Xs)
+        iso_scores = iso.decision_function(Xs)
+        iso_flags  = iso.predict(Xs) == -1
 
-    mu    = rets_df.mean() * 252
-    sigma = rets_df.cov()  * 252
-    rf    = 0.065 / 252    # India risk-free (daily)
+        # Feature names matching build_features() order
+        FEATURE_NAMES = [
+            "Amount (₹)", "Log Amount", "Day of Month", "Day of Week",
+            "Hour", "Month", "Is Weekend", "Category Frequency",
+            "Amount vs Category Avg", "Amount vs 7d Avg",
+            "Amount vs 30d Avg", "Category Anomaly Score",
+            "Rolling Spend Velocity", "Spend Acceleration",
+            "Days Since Last Txn", "Txn Count (7d)",
+            "Txn Count (30d)", "Category Entropy",
+        ]
 
-    # Risk profile → weight bounds
-    bounds_map = {
-        "conservative": (0.02, 0.35),
-        "moderate":     (0.02, 0.50),
-        "aggressive":   (0.01, 0.70),
-    }
-    lo, hi = bounds_map.get(req.risk_profile, (0.02, 0.50))
-    n      = len(symbols)
-    x0     = np.ones(n) / n
+        FEATURE_COLORS = [
+            "#f87171","#f97316","#fbbf24","#60a5fa",
+            "#a78bfa","#34d399","#06b6d4","#f472b6",
+            "#fb923c","#84cc16","#22d3ee","#e879f9",
+            "#f87171","#fbbf24","#60a5fa","#34d399",
+            "#a78bfa","#f97316",
+        ]
 
-    def neg_sharpe(w):
-        ret = float(np.dot(mu.values, w))
-        vol = float(np.sqrt(w @ sigma.values @ w))
-        return -(ret - rf * 252) / vol if vol > 0 else 0
+        amounts  = df["amount"].astype(float).values
+        avg_amt  = np.mean(amounts)
+        flagged_xai = []
 
-    result = sp_minimize(
-        neg_sharpe, x0,
-        method="SLSQP",
-        bounds=[(lo, hi)] * n,
-        constraints=[{"type": "eq", "fun": lambda w: np.sum(w) - 1}],
-        options={"maxiter": 500},
-    )
+        for i, row in df.iterrows():
+            err    = float(recon_err[i])
+            is_iso = bool(iso_flags[i])
+            if err <= threshold and not is_iso:
+                continue
 
-    weights = result.x if result.success else x0
+            risk = float(np.clip(err / (threshold + 1e-8) * 50, 0, 100))
+            amt  = float(amounts[i])
 
-    # Current weights (by invested amount)
-    total_invested = sum(float(h.get("investedAmt", 0)) for h in holdings if h["symbol"] in symbols)
-    current_weights = {
-        h["symbol"]: float(h.get("investedAmt", 0)) / total_invested if total_invested > 0 else 1 / len(symbols)
-        for h in holdings if h["symbol"] in symbols
-    }
+            # Per-feature contribution: how much does each feature deviate from mean?
+            feat_vec  = Xs[i]
+            feat_mean = np.mean(Xs, axis=0)
+            deviation = np.abs(feat_vec - feat_mean)
+            total_dev = deviation.sum() + 1e-8
+            contributions = (deviation / total_dev * 100).tolist()
 
-    # Build recommendations
-    recommendations = []
-    opt_ret = float(np.dot(mu.values, weights))
-    opt_vol = float(np.sqrt(weights @ sigma.values @ weights))
-    opt_sharpe = (opt_ret - 0.065) / opt_vol if opt_vol > 0 else 0
+            top_features = sorted(
+                [{"name": FEATURE_NAMES[j], "contribution": round(contributions[j], 1),
+                  "value": round(float(X[i][j]), 3), "color": FEATURE_COLORS[j]}
+                 for j in range(min(len(FEATURE_NAMES), X.shape[1]))],
+                key=lambda x: x["contribution"], reverse=True
+            )[:6]
 
-    cur_weights_arr = np.array([current_weights.get(s, 1/n) for s in symbols])
-    cur_ret  = float(np.dot(mu.values, cur_weights_arr))
-    cur_vol  = float(np.sqrt(cur_weights_arr @ sigma.values @ cur_weights_arr))
-    cur_sharpe = (cur_ret - 0.065) / cur_vol if cur_vol > 0 else 0
+            # Human-readable explanation
+            primary = top_features[0]["name"] if top_features else "Unknown"
+            explanation = (
+                f"This transaction deviates from your normal pattern. "
+                f"The primary flag is '{primary}'. "
+            )
+            if amt > np.percentile(amounts, 90):
+                explanation += f"The amount ₹{amt:,.0f} is in the top 10% of your spending. "
+            if is_iso:
+                explanation += "IsolationForest also identifies this as an outlier. "
 
-    for i, sym in enumerate(symbols):
-        curr_w = current_weights.get(sym, 0)
-        opt_w  = float(weights[i])
-        delta  = opt_w - curr_w
-        action = "INCREASE" if delta > 0.03 else "DECREASE" if delta < -0.03 else "HOLD"
-        recommendations.append({
-            "symbol":          sym,
-            "name":            names[sym],
-            "currentWeight":   round(curr_w * 100, 1),
-            "optimalWeight":   round(opt_w * 100, 1),
-            "delta":           round(delta * 100, 1),
-            "action":          action,
-            "annualisedReturn": round(float(mu[sym]) * 100, 1),
-        })
+            flagged_xai.append({
+                "id":           row.get("id", str(i)),
+                "description":  row.get("description", ""),
+                "amount":       amt,
+                "category":     row.get("category", ""),
+                "date":         str(row.get("date", "")),
+                "riskScore":    round(risk, 1),
+                "confidence":   "high" if err > threshold and is_iso else "medium",
+                "explanation":  explanation,
+                "topFeatures":  top_features,
+                "reconstructionError": round(err, 4),
+                "isolationFlag": is_iso,
+                "modelContributions": {
+                    "autoencoder":    round(float(err / (threshold + 1e-8) * 50), 1),
+                    "isolationForest": round(float(max(0, -iso_scores[i]) * 30), 1),
+                }
+            })
 
-    recommendations.sort(key=lambda x: abs(x["delta"]), reverse=True)
-
-    return {
-        "symbols":       symbols,
-        "recommendations": recommendations,
-        "current":  {"sharpe": round(cur_sharpe, 2), "return": round(cur_ret * 100, 1), "volatility": round(cur_vol * 100, 1)},
-        "optimal":  {"sharpe": round(opt_sharpe, 2), "return": round(opt_ret * 100, 1), "volatility": round(opt_vol * 100, 1)},
-        "improvement": {"sharpe": round(opt_sharpe - cur_sharpe, 2), "return": round((opt_ret - cur_ret) * 100, 1)},
-        "optimizerSuccess": result.success,
-        "model":     "FinGPT PortfolioOptimizer (Max-Sharpe SLSQP)",
-        "riskProfile": req.risk_profile,
-    }
-
-
-# ═════════════════════════════════════════════════════════════════════════════
-# 7. ROBO ADVISOR — Indian-adapted Asset Allocation
-#    Adapted from FinGPT Trader: strategies/robo/allocation.py + robo_service.py
-# ═════════════════════════════════════════════════════════════════════════════
-
-class RoboAdvisorRequest(BaseModel):
-    monthly_income:     float
-    monthly_expenses:   float
-    investment_amount:  float          # amount to invest now
-    monthly_sip:        float = 0      # recurring monthly SIP
-    risk_score:         int   = 5      # 1-10
-    investment_horizon: int   = 5      # years
-    age:                int   = 30
-    existing_emis:      float = 0
-    has_emergency_fund: bool  = False
-    tax_bracket:        float = 0.30   # 30% / 20% / 10%
-
-# Indian asset classes with CAGR assumptions
-INDIAN_ASSETS = {
-    "Liquid Fund / FD":         {"cagr": 6.5,  "risk": "Low",     "color": "#60a5fa",  "icon": "💧"},
-    "Large Cap Index Fund":     {"cagr": 12.0, "risk": "Medium",  "color": "#34d399",  "icon": "📊"},
-    "Mid Cap Fund":             {"cagr": 15.0, "risk": "Med-High","color": "#fbbf24",  "icon": "📈"},
-    "Small Cap Fund":           {"cagr": 18.0, "risk": "High",    "color": "#f97316",  "icon": "🚀"},
-    "ELSS (Tax Saving)":        {"cagr": 13.0, "risk": "Medium",  "color": "#a78bfa",  "icon": "🛡️"},
-    "Debt / Bond Fund":         {"cagr": 7.5,  "risk": "Low",     "color": "#06b6d4",  "icon": "🏦"},
-    "Gold ETF":                 {"cagr": 8.0,  "risk": "Medium",  "color": "#fbbf24",  "icon": "🥇"},
-    "US / International Fund":  {"cagr": 11.0, "risk": "Med-High","color": "#f472b6",  "icon": "🌍"},
-    "REITs / InvITs":           {"cagr": 9.0,  "risk": "Medium",  "color": "#10b981",  "icon": "🏢"},
-    "PPF / NPS":                {"cagr": 7.5,  "risk": "Low",     "color": "#8b5cf6",  "icon": "📋"},
-}
-
-def get_robo_allocation(risk_score: int, age: int, has_emergency: bool, tax_bracket: float) -> dict:
-    """
-    Indian-adapted asset allocation from FinGPT AssetAllocationStrategy.
-    Adapted from crypto weights to Indian equity/debt structure.
-    """
-    # Age-based equity cap: 100 - age rule
-    max_equity = min(100 - age, 80)
-
-    if risk_score <= 3:   # Conservative
-        alloc = {
-            "Liquid Fund / FD":         25 if not has_emergency else 10,
-            "Debt / Bond Fund":         30,
-            "PPF / NPS":                20,
-            "Large Cap Index Fund":     15,
-            "Gold ETF":                 10,
-        }
-    elif risk_score <= 5:  # Moderate
-        alloc = {
-            "Large Cap Index Fund":     30,
-            "ELSS (Tax Saving)":        15 if tax_bracket >= 0.20 else 5,
-            "Mid Cap Fund":             15,
-            "Debt / Bond Fund":         20,
-            "Gold ETF":                  5,
-            "PPF / NPS":                10,
-            "Liquid Fund / FD":          5 if not has_emergency else 0,
-        }
-    elif risk_score <= 7:  # Moderately Aggressive
-        alloc = {
-            "Large Cap Index Fund":     25,
-            "Mid Cap Fund":             20,
-            "ELSS (Tax Saving)":        15 if tax_bracket >= 0.20 else 5,
-            "Small Cap Fund":           10,
-            "US / International Fund":  10,
-            "Gold ETF":                  5,
-            "Debt / Bond Fund":         10,
-            "PPF / NPS":                 5,
-        }
-    else:  # Aggressive (8-10)
-        alloc = {
-            "Large Cap Index Fund":     20,
-            "Mid Cap Fund":             25,
-            "Small Cap Fund":           20,
-            "US / International Fund":  15,
-            "ELSS (Tax Saving)":        10 if tax_bracket >= 0.20 else 5,
-            "Gold ETF":                  5,
-            "REITs / InvITs":            5,
+        flagged_xai.sort(key=lambda x: x["riskScore"], reverse=True)
+        results["fraud"] = {
+            "flagged":      flagged_xai[:8],
+            "total":        len(df),
+            "flaggedCount": len(flagged_xai),
+            "threshold":    round(float(threshold), 4),
+            "featureNames": FEATURE_NAMES[:8],
         }
 
-    # Normalise to 100%
-    total = sum(alloc.values())
-    return {k: round(v / total * 100, 1) for k, v in alloc.items() if v > 0}
+    # ── CREDIT SCORE XAI ──────────────────────────────────────────────────────
+    if req.credit_features:
+        cf = req.credit_features
+        income       = max(cf.get("monthly_income", 1), 1)
+        expenses     = cf.get("monthly_expenses", 0)
+        emis         = cf.get("existing_emis", 0)
+        missed       = cf.get("missed_payments", 0)
+        util         = cf.get("credit_utilisation", 0)
+        acc_age      = cf.get("accounts_age_months", 12)
+        num_loans    = cf.get("num_active_loans", 0)
+        savings      = cf.get("savings_balance", 0)
+        credit_limit = max(cf.get("credit_limit", 1), 1)
+        cc_balance   = cf.get("credit_card_balance", 0)
 
-@app.post("/robo/advise")
-def robo_advise(req: RoboAdvisorRequest):
-    """
-    Robo Advisory from FinGPT RoboService + AssetAllocationStrategy,
-    adapted for Indian markets and Indian financial regulations.
-    """
-    income  = max(req.monthly_income, 1)
-    savings = max(income - req.monthly_expenses - req.existing_emis, 0)
-    savings_rate = savings / income * 100
+        dti          = emis / income
+        util_ratio   = cc_balance / credit_limit
+        savings_ratio= savings / income
+        payment_hist = max(0, 1 - missed * 0.15)
 
-    # Emergency fund check (FinGPT RoboService initial check)
-    emergency_needed = income * 6
-    emergency_status = {
-        "hasEmergencyFund": req.has_emergency_fund,
-        "recommended":      round(emergency_needed, 0),
-        "status":           "✅ Adequate" if req.has_emergency_fund else f"❌ Build ₹{emergency_needed:,.0f} first",
-    }
+        # CIBIL weightings (industry standard)
+        CIBIL_FACTORS = [
+            {
+                "factor":      "Payment History",
+                "weight":      35,
+                "score":       round(payment_hist * 100),
+                "color":       "#34d399",
+                "description": "On-time payment track record",
+                "status":      "Good" if missed == 0 else f"{missed} missed payments",
+                "impact":      "HIGH",
+                "suggestion":  None if missed == 0 else "Pay all dues immediately — this is the most impactful factor",
+            },
+            {
+                "factor":      "Credit Utilisation",
+                "weight":      20,
+                "score":       round(max(0, 1 - util_ratio) * 100),
+                "color":       "#60a5fa",
+                "description": "Credit card balance vs limit",
+                "status":      f"{util_ratio:.0%} utilised",
+                "impact":      "HIGH" if util_ratio > 0.3 else "LOW",
+                "suggestion":  f"Reduce to below 30% (currently {util_ratio:.0%})" if util_ratio > 0.3 else None,
+            },
+            {
+                "factor":      "Credit Age",
+                "weight":      15,
+                "score":       round(min(acc_age / 120, 1) * 100),
+                "color":       "#a78bfa",
+                "description": "Length of credit history",
+                "status":      f"{acc_age} months",
+                "impact":      "LOW" if acc_age > 24 else "MEDIUM",
+                "suggestion":  "Don't close old accounts — age matters" if acc_age < 36 else None,
+            },
+            {
+                "factor":      "Debt-to-Income",
+                "weight":      15,
+                "score":       round(max(0, 1 - dti / 0.6) * 100),
+                "color":       "#fbbf24",
+                "description": "Monthly EMIs vs income",
+                "status":      f"{dti:.0%} DTI",
+                "impact":      "HIGH" if dti > 0.4 else "LOW",
+                "suggestion":  f"Pay off loans to reduce DTI below 40% (currently {dti:.0%})" if dti > 0.4 else None,
+            },
+            {
+                "factor":      "Credit Mix",
+                "weight":      5,
+                "score":       round(min(num_loans / 3, 1) * 100),
+                "color":       "#06b6d4",
+                "description": "Variety of credit types",
+                "status":      f"{num_loans} active loans",
+                "impact":      "LOW",
+                "suggestion":  None,
+            },
+            {
+                "factor":      "Savings Buffer",
+                "weight":      5,
+                "score":       round(min(savings_ratio / 3, 1) * 100),
+                "color":       "#f472b6",
+                "description": "Savings as income multiple",
+                "status":      f"{savings_ratio:.1f}× monthly income",
+                "impact":      "LOW" if savings_ratio > 1 else "MEDIUM",
+                "suggestion":  "Build 3× monthly income in savings" if savings_ratio < 1 else None,
+            },
+            {
+                "factor":      "Income Level",
+                "weight":      5,
+                "score":       round(min(income / 100000, 1) * 100),
+                "color":       "#fb923c",
+                "description": "Monthly income stability",
+                "status":      f"₹{income:,.0f}/month",
+                "impact":      "LOW",
+                "suggestion":  None,
+            },
+        ]
 
-    # Get allocation
-    risk_label = ["Very Low","Low","Low-Med","Moderate","Moderate","Med-High","Med-High","High","High","Very High"][req.risk_score - 1]
-    allocation = get_robo_allocation(req.risk_score, req.age, req.has_emergency_fund, req.tax_bracket)
+        # Weighted score
+        weighted = sum(f["weight"] * f["score"] / 100 for f in CIBIL_FACTORS)
+        estimated = int(np.clip(weighted * 6 + 300, 300, 900))
 
-    # Calculate projected corpus for each asset
-    r = req.investment_amount
-    monthly = req.monthly_sip
-    years = req.investment_horizon
+        results["creditScore"] = {
+            "estimatedScore": estimated,
+            "factors":        CIBIL_FACTORS,
+            "topSuggestions": [f["suggestion"] for f in CIBIL_FACTORS if f["suggestion"]],
+            "scoreBreakdown": {
+                "paymentHistory":  round(payment_hist * 35, 1),
+                "utilisation":     round(max(0, 1 - util_ratio) * 20, 1),
+                "creditAge":       round(min(acc_age / 120, 1) * 15, 1),
+                "dti":             round(max(0, 1 - dti / 0.6) * 15, 1),
+                "other":           round(weighted * 100 - (payment_hist * 35 + max(0, 1 - util_ratio) * 20 + min(acc_age / 120, 1) * 15 + max(0, 1 - dti / 0.6) * 15), 1),
+            },
+        }
 
-    portfolio_items = []
-    total_projected = 0
-
-    for asset_name, pct in allocation.items():
-        meta = INDIAN_ASSETS.get(asset_name, {"cagr": 10, "risk": "Medium", "color": "#64748b", "icon": "💰"})
-        cagr   = meta["cagr"] / 100
-        alloc_amt  = r * (pct / 100)
-        monthly_alloc = monthly * (pct / 100) if monthly > 0 else 0
-
-        # Lumpsum growth
-        lump_fv  = alloc_amt * (1 + cagr) ** years
-
-        # SIP future value
-        mr = cagr / 12
-        n  = years * 12
-        sip_fv = monthly_alloc * ((((1 + mr) ** n) - 1) / mr) * (1 + mr) if mr > 0 and monthly_alloc > 0 else 0
-
-        fv = lump_fv + sip_fv
-        total_projected += fv
-
-        portfolio_items.append({
-            "asset":        asset_name,
-            "allocation":   pct,
-            "amount":       round(alloc_amt, 0),
-            "monthlySIP":   round(monthly_alloc, 0),
-            "projectedFV":  round(fv, 0),
-            "cagr":         meta["cagr"],
-            "risk":         meta["risk"],
-            "color":        meta["color"],
-            "icon":         meta["icon"],
-        })
-
-    # Rebalancing signals (FinGPT generate_signals logic)
-    rebalance_signals = []
-    for item in portfolio_items:
-        if item["allocation"] < 5:
-            rebalance_signals.append(f"Consider removing {item['asset']} (< 5% allocation)")
-        if item["allocation"] > 40:
-            rebalance_signals.append(f"⚠ {item['asset']} is over-concentrated at {item['allocation']}%")
-
-    # Tax optimisation tip
-    tax_tips = []
-    if req.tax_bracket >= 0.20:
-        elss_item = next((i for i in portfolio_items if "ELSS" in i["asset"]), None)
-        if elss_item:
-            tax_saved = min(elss_item["amount"], 150000) * req.tax_bracket
-            tax_tips.append(f"ELSS investment can save up to ₹{tax_saved:,.0f} in income tax this year (Section 80C)")
-    if req.investment_horizon >= 3:
-        tax_tips.append("Equity funds held > 1 year qualify for LTCG at 10% (vs 15% STCG) — stay invested")
-
-    return {
-        "riskScore":       req.risk_score,
-        "riskLabel":       risk_label,
-        "investmentAmount":req.investment_amount,
-        "monthlySIP":      req.monthly_sip,
-        "horizon":         req.investment_horizon,
-        "savingsRate":     round(savings_rate, 1),
-        "emergencyFund":   emergency_status,
-        "allocation":      portfolio_items,
-        "totalProjected":  round(total_projected, 0),
-        "totalInvested":   round(req.investment_amount + req.monthly_sip * 12 * req.investment_horizon, 0),
-        "rebalanceSignals":rebalance_signals,
-        "taxTips":         tax_tips,
-        "model":           "FinGPT RoboService (Indian-adapted)",
-    }
-
+    return results
 
 @app.get("/health")
 def health():
     return {
         "status": "ok",
-        "services": ["fraud-detection", "tft-forecast", "credit-score", "bank-parser",
-                     "trading-planner", "portfolio-risk", "portfolio-optimize", "robo-advisor"],
+        "services": ["fraud-detection", "tft-forecast", "credit-score", "bank-parser", "trading-planner"],
         "port": 8002,
     }
 
