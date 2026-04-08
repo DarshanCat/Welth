@@ -41,46 +41,7 @@ export function AddTransactionForm({
   const searchParams = useSearchParams();
   const editId = searchParams?.get("edit");
 
-  // ── AI Auto-Categorize ────────────────────────────────────────────────────
-  const [aiCatLoading, setAiCatLoading] = useState(false);
-  const [aiCatSuggestion, setAiCatSuggestion] = useState(null);
-  const debounceRef = useRef(null);
-
-  const description = watch("description");
-  const amount      = watch("amount");
-  const type        = watch("type");
-
-  useEffect(() => {
-    if (!description || description.length < 3) { 
-      setAiCatSuggestion(null); 
-      return; 
-    }
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
-      setAiCatLoading(true);
-      try {
-        const res = await fetch("/api/ai/categorize", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ description, amount, type }),
-        });
-        const data = await res.json();
-        
-        if (data.category && data.confidence > 70) {
-          setValue("category", data.category);
-          toast.success(`AI securely categorised as ${data.category}`, {
-            id: 'ai-category-toast',
-            icon: <Sparkles className="w-4 h-4 text-violet-500" />
-          });
-        }
-      } catch {
-        /* silent */
-      } finally {
-        setAiCatLoading(false);
-      }
-    }, 800);
-  }, [description, amount, type, setValue]);
-
+  // ── useForm MUST be declared before any watch() calls ────────────────────
   const {
     register,
     handleSubmit,
@@ -117,6 +78,49 @@ export function AddTransactionForm({
           },
   });
 
+  // ── Now safe to call watch() ──────────────────────────────────────────────
+  const description = watch("description");
+  const amount      = watch("amount");
+  const type        = watch("type");
+  const isRecurring = watch("isRecurring");
+  const date        = watch("date");
+
+  // ── AI Auto-Categorize ────────────────────────────────────────────────────
+  const [aiCatLoading, setAiCatLoading] = useState(false);
+  const [aiCatSuggestion, setAiCatSuggestion] = useState(null);
+  const debounceRef = useRef(null);
+
+  useEffect(() => {
+    if (!description || description.length < 3) {
+      setAiCatSuggestion(null);
+      return;
+    }
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      setAiCatLoading(true);
+      try {
+        const res = await fetch("/api/ai/categorize", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ description, amount, type }),
+        });
+        const data = await res.json();
+        if (data.category && data.confidence > 70) {
+          setValue("category", data.category);
+          toast.success(`AI categorised as ${data.category}`, {
+            id: "ai-category-toast",
+            icon: <Sparkles className="w-4 h-4 text-violet-500" />,
+          });
+        }
+      } catch {
+        /* silent */
+      } finally {
+        setAiCatLoading(false);
+      }
+    }, 800);
+  }, [description, amount, type, setValue]);
+
+  // ── useFetch ──────────────────────────────────────────────────────────────
   const {
     loading: transactionLoading,
     fn: transactionFn,
@@ -124,11 +128,7 @@ export function AddTransactionForm({
   } = useFetch(editMode ? updateTransaction : createTransaction);
 
   const onSubmit = (data) => {
-    const formData = {
-      ...data,
-      amount: parseFloat(data.amount),
-    };
-
+    const formData = { ...data, amount: parseFloat(data.amount) };
     if (editMode) {
       transactionFn(editId, formData);
     } else {
@@ -140,12 +140,8 @@ export function AddTransactionForm({
     if (scannedData) {
       setValue("amount", scannedData.amount.toString());
       setValue("date", new Date(scannedData.date));
-      if (scannedData.description) {
-        setValue("description", scannedData.description);
-      }
-      if (scannedData.category) {
-        setValue("category", scannedData.category);
-      }
+      if (scannedData.description) setValue("description", scannedData.description);
+      if (scannedData.category)    setValue("category", scannedData.category);
       toast.success("Receipt scanned successfully");
     }
   };
@@ -153,17 +149,12 @@ export function AddTransactionForm({
   useEffect(() => {
     if (transactionResult?.success && !transactionLoading) {
       toast.success(
-        editMode
-          ? "Transaction updated successfully"
-          : "Transaction created successfully"
+        editMode ? "Transaction updated successfully" : "Transaction created successfully"
       );
       reset();
       router.push(`/account/${transactionResult.data.accountId}`);
     }
   }, [transactionResult, transactionLoading, editMode]);
-
-  const isRecurring = watch("isRecurring");
-  const date = watch("date");
 
   const filteredCategories = categories.filter(
     (category) => category.type === type
@@ -221,7 +212,7 @@ export function AddTransactionForm({
             <SelectContent>
               {accounts.map((account) => (
                 <SelectItem key={account.id} value={account.id}>
-                  {account.name} (${parseFloat(account.balance).toFixed(2)})
+                  {account.name} (₹{parseFloat(account.balance).toFixed(2)})
                 </SelectItem>
               ))}
               <CreateAccountDrawer>
@@ -246,7 +237,7 @@ export function AddTransactionForm({
           <label className="text-sm font-medium">Category</label>
           {aiCatLoading && (
             <span style={{ display:"flex", alignItems:"center", gap:4, fontSize:".68rem", color:"#a78bfa" }}>
-              <Loader2 size={10} style={{ animation:"spin 1s linear infinite" }}/> AI analyzing description…
+              <Loader2 size={10} style={{ animation:"spin 1s linear infinite" }}/> AI analysing…
             </span>
           )}
         </div>
@@ -315,7 +306,10 @@ export function AddTransactionForm({
       {/* Split With */}
       <div className="space-y-2">
         <label className="text-sm font-medium">Split With (Optional)</label>
-        <Input placeholder="E.g., Rahul, Amit (Comma separated names)" {...register("splitWith")} />
+        <Input
+          placeholder="E.g., Rahul, Amit (Comma separated)"
+          {...register("splitWith")}
+        />
       </div>
 
       {/* Recurring Toggle */}
@@ -381,6 +375,8 @@ export function AddTransactionForm({
           )}
         </Button>
       </div>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </form>
   );
 }

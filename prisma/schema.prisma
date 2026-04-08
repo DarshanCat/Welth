@@ -36,6 +36,7 @@ model Account {
   type         AccountType
   balance      Decimal       @default(0)
   isDefault    Boolean       @default(false)
+  currency     String        @default("INR") // ✅ ADDED
   userId       String
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions Transaction[]
