@@ -215,7 +215,7 @@ export default function OnboardingPage() {
                 </div>
                 <div>
                   <h2 style={{ fontWeight:800, fontSize:"1.05rem", color:"#f1f5f9", margin:0 }}>Set a monthly budget</h2>
-                  <p style={{ color:"#64748b", fontSize:".72rem", margin:0 }}>We'll alert you before you overspend</p>
+                  <p style={{ color:"#64748b", fontSize:".72rem", margin:0 }}>We&apos;ll alert you before you overspend</p>
                 </div>
               </div>
 
@@ -252,7 +252,7 @@ export default function OnboardingPage() {
                 <CheckCircle2 size={28} style={{ color:"#34d399" }}/>
               </div>
               <h2 style={{ fontWeight:800, fontSize:"1.2rem", color:"#f1f5f9", margin:"0 0 8px" }}>
-                You're all set! 🎉
+                You&apos;re all set! 🎉
               </h2>
               <p style={{ color:"#64748b", fontSize:".82rem", lineHeight:1.6, margin:"0 0 24px" }}>
                 Your account is ready. Head to the dashboard to add transactions, track investments, and let AI do the heavy lifting.

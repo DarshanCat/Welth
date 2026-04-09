@@ -17,7 +17,7 @@ export async function POST(req) {
     const arrayBuffer = await file.arrayBuffer();
     const base64      = Buffer.from(arrayBuffer).toString("base64");
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const prompt = `Analyze this receipt/bill image and extract information. Return ONLY valid JSON, no markdown.
 
@@ -34,13 +34,18 @@ export async function POST(req) {
 If this is NOT a receipt, return: {"isReceipt": false}
 Rules: amount must be the final TOTAL (including tax). Date in YYYY-MM-DD. category must match exactly one from the list.`;
 
-    const result = await model.generateContent([
-      { inlineData: { data: base64, mimeType: file.type } },
-      prompt,
-    ]);
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [
+        { inlineData: { data: base64, mimeType: file.type } },
+        { text: prompt }
+      ] }],
+      generationConfig: { responseMimeType: "application/json", temperature: 0.1 }
+    });
 
-    const text    = result.response.text().replace(/```json|```/g, "").trim();
-    const data    = JSON.parse(text);
+    const text    = result.response.text();
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const cleanedText = jsonMatch ? jsonMatch[0] : text;
+    const data    = JSON.parse(cleanedText);
 
     if (!data.isReceipt) {
       return NextResponse.json({ error: "This doesn't look like a receipt. Try a clearer photo of a bill." });

@@ -137,7 +137,7 @@ export default function XAIDashboard() {
               <p style={{ fontSize:"2.5rem", margin:"0 0 12px" }}>🛡️</p>
               <p style={{ color:"#f1f5f9", fontWeight:700, margin:"0 0 6px" }}>Fraud Explanation Engine</p>
               <p style={{ color:"#475569", fontSize:".8rem" }}>
-                Click "Explain My Transactions" to see exactly which features caused each transaction to be flagged — with percentage contributions from each AI model.
+                Click &quot;Explain My Transactions&quot; to see exactly which features caused each transaction to be flagged — with percentage contributions from each AI model.
               </p>
             </div>
           )}
@@ -295,7 +295,7 @@ export default function XAIDashboard() {
                 <p style={{ fontSize:"2.5rem", margin:"0 0 12px" }}>💳</p>
                 <p style={{ color:"#f1f5f9", fontWeight:700, margin:"0 0 6px" }}>CIBIL Score Explainer</p>
                 <p style={{ color:"#475569", fontSize:".8rem" }}>
-                  Adjust your profile and click "Explain" to see each CIBIL factor's contribution, impact, and how to improve.
+                  Adjust your profile and click &quot;Explain&quot; to see each CIBIL factor&apos;s contribution, impact, and how to improve.
                 </p>
               </div>
             ) : (

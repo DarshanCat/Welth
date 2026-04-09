@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Target, TrendingUp, TrendingDown, Sparkles, Loader2, AlertTriangle, CheckCircle } from "lucide-react";
+import { Target, Sparkles, Loader2, AlertTriangle, CheckCircle } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 
 const fmt   = (n) => new Intl.NumberFormat("en-IN", { style:"currency", currency:"INR", maximumFractionDigits:0 }).format(n??0);
@@ -155,7 +155,7 @@ export default function SmartGoalsAI() {
             <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
               <Sparkles size={12} style={{ color:"#a78bfa" }}/>
               <span style={{ fontSize:".65rem", fontWeight:700, color:"#a78bfa",
-                textTransform:"uppercase", letterSpacing:".05em" }}>CA Arjun's Advice</span>
+                textTransform:"uppercase", letterSpacing:".05em" }}>CA Arjun&apos;s Advice</span>
             </div>
             <p style={{ fontSize:".75rem", color:"#94a3b8", margin:0, lineHeight:1.6 }}>{g.aiAdvice}</p>
           </div>

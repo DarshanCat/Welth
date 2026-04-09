@@ -294,7 +294,7 @@ export default function SIPPage() {
                       <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
                         <Sparkles size={14} style={{ color: "#a78bfa" }}/>
                         <span style={{ fontSize: ".7rem", fontWeight: 700, color: "#a78bfa",
-                          textTransform: "uppercase", letterSpacing: ".06em" }}>CA Arjun's SIP Advice</span>
+                          textTransform: "uppercase", letterSpacing: ".06em" }}>CA Arjun&apos;s SIP Advice</span>
                       </div>
                       <p style={{ fontSize: ".78rem", color: "#94a3b8", margin: 0,
                         lineHeight: 1.7, whiteSpace: "pre-line" }}>{r.aiInsight}</p>

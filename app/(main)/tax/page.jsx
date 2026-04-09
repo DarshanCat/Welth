@@ -312,7 +312,7 @@ export default function TaxPage() {
                 Fill in your income details
               </p>
               <p style={{ color: "#475569", fontSize: ".8rem", margin: 0 }}>
-                Enter your salary, deductions and investments on the left — we'll calculate your exact tax for FY 2024-25 and tell you which regime saves more.
+                Enter your salary, deductions and investments on the left — we&apos;ll calculate your exact tax for FY 2024-25 and tell you which regime saves more.
               </p>
             </div>
           )}
@@ -358,7 +358,7 @@ export default function TaxPage() {
                         {result.betterRegime === "new" ? "New" : "Old"} Regime saves you {fmt(result.savingsAbs)}
                       </p>
                       <p style={{ fontSize: ".7rem", color: "#64748b", margin: 0 }}>
-                        That's {fmt(Math.round(result.savingsAbs / 12))} less TDS per month
+                        That&apos;s {fmt(Math.round(result.savingsAbs / 12))} less TDS per month
                       </p>
                     </div>
                   </div>
@@ -427,7 +427,7 @@ export default function TaxPage() {
                   <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 9 }}>
                     <Sparkles size={14} style={{ color: "#a78bfa" }}/>
                     <p style={{ fontSize: ".7rem", fontWeight: 700, color: "#a78bfa",
-                      textTransform: "uppercase", letterSpacing: ".06em", margin: 0 }}>CA Arjun's Advice</p>
+                      textTransform: "uppercase", letterSpacing: ".06em", margin: 0 }}>CA Arjun&apos;s Advice</p>
                   </div>
                   <p style={{ fontSize: ".78rem", color: "#94a3b8", margin: 0, lineHeight: 1.7,
                     whiteSpace: "pre-line" }}>{result.aiAdvice}</p>

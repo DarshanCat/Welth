@@ -170,7 +170,7 @@ export async function getUserTransactions(query = {}) {
 // ── Scan Receipt ──────────────────────────────────────────────────────────────
 export async function scanReceipt(file) {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const arrayBuffer = await file.arrayBuffer();
     const base64String = Buffer.from(arrayBuffer).toString("base64");
@@ -195,13 +195,17 @@ export async function scanReceipt(file) {
       If its not a receipt, return an empty object
     `;
 
-    const result = await model.generateContent([
-      { inlineData: { data: base64String, mimeType: file.type } },
-      prompt,
-    ]);
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [
+        { inlineData: { data: base64String, mimeType: file.type } },
+        { text: prompt }
+      ] }],
+      generationConfig: { responseMimeType: "application/json", temperature: 0.1 }
+    });
 
-    const text = (await result.response).text();
-    const cleanedText = text.replace(/```(?:json)?\n?/g, "").trim();
+    const text = await result.response.text();
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const cleanedText = jsonMatch ? jsonMatch[0] : text;
 
     try {
       const data = JSON.parse(cleanedText);

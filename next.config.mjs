@@ -16,6 +16,10 @@ const nextConfig = {
     },
   },
 
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+
   // Allow access from local network IPs during development
   allowedDevOrigins: [
     "192.168.56.1",

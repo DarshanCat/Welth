@@ -115,7 +115,7 @@ export default function InsightsPage() {
         <div style={{ padding:"16px 20px", borderRadius:16, background:"rgba(167,139,250,.06)", border:"1px solid rgba(167,139,250,.2)", marginBottom:20 }}>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
             <Sparkles size={14} style={{ color:"#a78bfa" }}/>
-            <span style={{ fontSize:".7rem", fontWeight:700, color:"#a78bfa", textTransform:"uppercase", letterSpacing:".06em" }}>CA Arjun's Overall Assessment</span>
+            <span style={{ fontSize:".7rem", fontWeight:700, color:"#a78bfa", textTransform:"uppercase", letterSpacing:".06em" }}>CA Arjun&apos;s Overall Assessment</span>
           </div>
           <p style={{ fontSize:".8rem", color:"#94a3b8", margin:0, lineHeight:1.7, whiteSpace:"pre-line" }}>{aiSummary}</p>
         </div>
@@ -267,7 +267,7 @@ export default function InsightsPage() {
               </BarChart>
             </ResponsiveContainer>
             <TIP color="#fb923c">
-              Red bars = categories inflating faster than RBI's {pi.rbiCpi}% benchmark. These are draining your purchasing power.
+              Red bars = categories inflating faster than RBI&apos;s {pi.rbiCpi}% benchmark. These are draining your purchasing power.
             </TIP>
           </SectionCard>
 

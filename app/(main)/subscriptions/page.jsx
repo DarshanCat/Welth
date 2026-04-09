@@ -99,7 +99,7 @@ export default function SubscriptionsPage() {
           <p style={{ fontSize:"2rem", margin:"0 0 10px" }}>📊</p>
           <p style={{ color:"#f1f5f9", fontWeight:700, margin:"0 0 6px" }}>Not enough data yet</p>
           <p style={{ color:"#64748b", fontSize:".82rem", margin:0 }}>
-            Add at least 5 transactions and come back in a month — we'll detect your subscriptions automatically.
+            Add at least 5 transactions and come back in a month — we&apos;ll detect your subscriptions automatically.
           </p>
         </div>
       )}
@@ -208,7 +208,7 @@ export default function SubscriptionsPage() {
               <p style={{ fontSize:"2.5rem", margin:"0 0 12px" }}>🎉</p>
               <p style={{ color:"#f1f5f9", fontWeight:700, fontSize:"1rem", margin:"0 0 6px" }}>No recurring charges detected</p>
               <p style={{ color:"#64748b", fontSize:".82rem", margin:0 }}>
-                Your transactions don't show any recurring patterns yet. Add more transactions and check back.
+                Your transactions don&apos;t show any recurring patterns yet. Add more transactions and check back.
               </p>
             </div>
           )}

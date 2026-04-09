@@ -200,7 +200,7 @@ export default function RoboAdvisorPage() {
                 <p style={{ fontSize:"3rem", margin:"0 0 14px" }}>🤖</p>
                 <p style={{ color:"#f1f5f9", fontWeight:700, margin:"0 0 8px" }}>Set your profile to get started</p>
                 <p style={{ color:"#475569", fontSize:".8rem", margin:0 }}>
-                  Fill in your financial details and click "Get Robo Advice" for an AI-generated portfolio allocation.
+                  Fill in your financial details and click &quot;Get Robo Advice&quot; for an AI-generated portfolio allocation.
                 </p>
               </div>
             )}
@@ -341,7 +341,7 @@ export default function RoboAdvisorPage() {
             <div style={{ padding:"48px 20px", textAlign:"center", borderRadius:20, background:"rgba(255,255,255,.02)", border:"1px solid rgba(255,255,255,.06)" }}>
               <p style={{ fontSize:"2.5rem", margin:"0 0 12px" }}>📊</p>
               <p style={{ color:"#f1f5f9", fontWeight:700, margin:"0 0 6px" }}>Portfolio Risk Analysis</p>
-              <p style={{ color:"#475569", fontSize:".8rem" }}>Click "Analyse Portfolio Risk" to get VaR, Beta, Sharpe Ratio and tax-loss harvesting opportunities from your holdings.</p>
+              <p style={{ color:"#475569", fontSize:".8rem" }}>Click &quot;Analyse Portfolio Risk&quot; to get VaR, Beta, Sharpe Ratio and tax-loss harvesting opportunities from your holdings.</p>
             </div>
           )}
 

@@ -427,7 +427,7 @@ export default function ChatBot() {
               <Shield size={12} color={strictMode ? "#ef4444" : "#94a3b8"} />
             </div>
             <div>
-              <p style={{ fontSize: "0.75rem", color: strictMode ? "#ef4444" : "#cbd5e1", fontWeight: 700, margin: 0 }}>Devil's Advocate</p>
+              <p style={{ fontSize: "0.75rem", color: strictMode ? "#ef4444" : "#cbd5e1", fontWeight: 700, margin: 0 }}>Devil&apos;s Advocate</p>
               <p style={{ fontSize: "0.6rem", color: "#64748b", margin: 0 }}>Strict spending control</p>
             </div>
           </div>

@@ -22,7 +22,7 @@ export async function POST(req) {
     if (!description) return NextResponse.json({ error: "No description" }, { status: 400 });
 
     const categories = type === "EXPENSE" ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const prompt = `Categorize this Indian financial transaction.
 Description: "${description}"
