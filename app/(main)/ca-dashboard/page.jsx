@@ -5,8 +5,9 @@ import {
   Briefcase, BadgeCheck, TrendingUp, TrendingDown, Wallet,
   Target, RefreshCw, Loader2, ArrowUpRight, ArrowDownRight,
   ShieldCheck, AlertTriangle, CheckCircle, Info, FileText,
-  BarChart2, List, PieChart, Calendar, IndianRupee,
+  BarChart2, List, PieChart, Calendar, IndianRupee, Mail,
 } from "lucide-react";
+import { toast } from "sonner";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, PieChart as RPie, Pie, Cell,
@@ -89,6 +90,7 @@ export default function CADashboardPage() {
   const [error,    setError]    = useState(false);
   const [tab,      setTab]      = useState("overview");
   const [txFilter, setTxFilter] = useState("ALL");
+  const [sendingEmail, setSendingEmail] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError(false);
@@ -100,6 +102,22 @@ export default function CADashboardPage() {
     } catch { setError(true); }
     finally   { setLoading(false); }
   }, []);
+
+  const sendEmailReport = async () => {
+    setSendingEmail(true);
+    try {
+      const res = await fetch("/api/export/email-report", {
+        method: "POST"
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      toast.success("CA Report sent to your Gmail successfully!");
+    } catch (err) {
+      toast.error(err.message || "Failed to send email");
+    } finally {
+      setSendingEmail(false);
+    }
+  };
 
   useEffect(() => { load(); }, [load]);
 
@@ -127,11 +145,18 @@ export default function CADashboardPage() {
             </p>
           </div>
         </div>
-        <button onClick={load} disabled={loading}
-          style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 9999, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#94a3b8", fontSize: ".8rem", cursor: "pointer" }}>
-          <RefreshCw size={13} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} />
-          Refresh
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={sendEmailReport} disabled={sendingEmail || loading}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 9999, background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.3)", color: "#34d399", fontSize: ".8rem", cursor: sendingEmail || loading ? "not-allowed" : "pointer", opacity: sendingEmail || loading ? 0.6 : 1, transition: "all .2s" }}>
+            {sendingEmail ? <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} /> : <Mail size={13} />}
+            Send to Gmail
+          </button>
+          <button onClick={load} disabled={loading}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 9999, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#94a3b8", fontSize: ".8rem", cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.6 : 1, transition: "all .2s" }}>
+            <RefreshCw size={13} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Loading */}

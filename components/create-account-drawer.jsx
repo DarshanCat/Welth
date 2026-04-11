@@ -117,6 +117,7 @@ export function CreateAccountDrawer({ children }) {
                 <SelectContent>
                   <SelectItem value="CURRENT">Current</SelectItem>
                   <SelectItem value="SAVINGS">Savings</SelectItem>
+                  <SelectItem value="CREDIT">Credit Card</SelectItem>
                 </SelectContent>
               </Select>
               {errors.type && (

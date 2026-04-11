@@ -13,6 +13,7 @@ import { DashboardOverview } from "./_components/transaction-overview";
 import { GoalsCard } from "./_components/goals-card";
 import DashboardCharts from "./_components/dashboard-charts";
 import ReceiptScanner from "@/components/ReceiptScanner";
+import BankStatementScanner from "@/components/BankStatementScanner";
 import InvestmentWidget from "./_components/investment-widget";
 import DashboardHero from "./_components/dashboard-hero";
 import AiInsightsDashboard from "./_components/ai-insights-dashboard";
@@ -164,9 +165,10 @@ export default async function DashboardPage() {
         <DashboardOverview accounts={accounts} transactions={transactions || []} upiId={upiId} />
       </div>
 
-      {/* ── SECTION 7: Receipt Scanner ── */}
-      <div style={{ maxWidth:560 }}>
+      {/* ── SECTION 7: Scanners ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
         <ReceiptScanner />
+        <BankStatementScanner />
       </div>
 
     </div>

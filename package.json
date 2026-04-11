@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev:next": "next dev --turbopack",
+    "dev:ml": "python -m uvicorn ml_service.advanced_ai:app --port 8002 --reload",
+    "dev": "concurrently \"npm run dev:next\" \"npm run dev:ml\"",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -56,6 +58,7 @@
   },
   "devDependencies": {
     "@react-email/preview-server": "^5.2.9",
+    "concurrently": "^9.2.1",
     "eslint": "^8",
     "eslint-config-next": "15.0.3",
     "i": "^0.3.7",

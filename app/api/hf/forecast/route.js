@@ -4,7 +4,7 @@ import { db } from "@/lib/prisma";
 
 const HF_TOKEN    = process.env.HF_TOKEN;
 // Use HF Inference API for Chronos — no local Python service needed
-const CHRONOS_HF  = "https://api-inference.huggingface.co/models/amazon/chronos-t5-small";
+const CHRONOS_HF  = "https://router.huggingface.co/hf-inference/models/amazon/chronos-t5-small";
 
 // ── Build monthly series ──────────────────────────────────────────────────────
 function buildMonthlySeries(transactions, type, months = 9) {

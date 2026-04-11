@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { PieChart as RPie, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import SentimentWidget from "./_components/sentiment-widget";
+import AIScreenerTab from "./_components/ai-screener";
 
 const fmt    = (n) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n ?? 0);
 const fmtDec = (n) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n ?? 0);
@@ -572,9 +573,9 @@ export default function PortfolioPage() {
 
           {/* Tabs */}
           <div style={{display:"flex",gap:4,padding:4,borderRadius:16,background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.07)",marginBottom:18}}>
-            {[{key:"holdings",label:"Holdings",icon:BarChart2},{key:"analysis",label:"Analysis",icon:PieChart}].map(t=>{
+            {[{key:"holdings",label:"Holdings",icon:BarChart2},{key:"analysis",label:"Analysis",icon:PieChart},{key:"ai",label:"Predict (AI)",icon:TrendingUp}].map(t=>{
               const Icon=t.icon; const a=tab===t.key;
-              return <button key={t.key} onClick={()=>setTab(t.key)} style={{flex:1,padding:"8px",borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",gap:6,fontSize:".8rem",fontWeight:a?700:500,background:a?"rgba(52,211,153,.15)":"transparent",color:a?"#34d399":"#64748b",border:a?"1px solid rgba(52,211,153,.3)":"1px solid transparent",cursor:"pointer"}}><Icon size={13}/>{t.label}</button>;
+              return <button key={t.key} onClick={()=>setTab(t.key)} style={{flex:1,padding:"8px",borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",gap:6,fontSize:".8rem",fontWeight:a?700:500,background:a?(t.key==="ai"?"rgba(167,139,250,.15)":"rgba(52,211,153,.15)"):"transparent",color:a?(t.key==="ai"?"#a78bfa":"#34d399"):"#64748b",border:a?(t.key==="ai"?"1px solid rgba(167,139,250,.3)":"1px solid rgba(52,211,153,.3)"):"1px solid transparent",cursor:"pointer"}}><Icon size={13}/>{t.label}</button>;
             })}
           </div>
 
@@ -636,6 +637,10 @@ export default function PortfolioPage() {
                 </div>
               </div>
             </div>
+          )}
+
+          {tab==="ai"&&(
+            <AIScreenerTab />
           )}
         </>
       )}

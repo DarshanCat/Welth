@@ -169,6 +169,12 @@ export default function ChatBot() {
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isVoiceOutput && typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+  }, [isVoiceOutput]);
+
   const currentMode = MODES.find(m => m.key === mode) || MODES[0];
 
   const speakText = useCallback((text) => {

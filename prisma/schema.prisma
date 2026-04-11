@@ -209,6 +209,7 @@ enum TransactionType {
 enum AccountType {
   CURRENT
   SAVINGS
+  CREDIT
 }
 
 enum TransactionStatus {

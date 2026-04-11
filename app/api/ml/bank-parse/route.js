@@ -16,8 +16,8 @@ export async function POST(req) {
 
     // Validate file type
     const name = file.name?.toLowerCase() || "";
-    if (!name.match(/\.(pdf|jpg|jpeg|png|webp)$/)) {
-      return NextResponse.json({ error: "Supported: PDF, JPG, PNG, WEBP" }, { status: 400 });
+    if (!name.match(/\.(pdf|jpg|jpeg|png|webp|csv|xml|xls|xlsx)$/)) {
+      return NextResponse.json({ error: "Supported: PDF, JPG, PNG, WEBP, CSV, XML, XLS, XLSX" }, { status: 400 });
     }
 
     // Max 10MB

@@ -14,12 +14,14 @@ import { toast } from "sonner";
 import { createAccount } from "@/actions/dashboard";
 import { updateBudget } from "@/actions/budget";
 import useFetch from "@/hooks/use-fetch";
+import { SUPPORTED_CURRENCIES, DEFAULT_CURRENCY } from "@/data/currencies";
 
 const fmt = (n) => new Intl.NumberFormat("en-IN", { style:"currency", currency:"INR", maximumFractionDigits:0 }).format(n??0);
 
 const accountSchema = z.object({
   name:    z.string().min(1, "Account name required"),
   type:    z.enum(["CURRENT", "SAVINGS"]),
+  currency:z.string().min(1, "Currency required"),
   balance: z.string().min(1, "Opening balance required"),
 });
 
@@ -47,7 +49,7 @@ export default function OnboardingPage() {
   const [skipBudget, setSkipBudget] = useState(false);
 
   // Account form
-  const accForm = useForm({ resolver: zodResolver(accountSchema), defaultValues: { name:"", type:"SAVINGS", balance:"" } });
+  const accForm = useForm({ resolver: zodResolver(accountSchema), defaultValues: { name:"", type:"SAVINGS", currency:DEFAULT_CURRENCY, balance:"" } });
   const { loading: accLoading, fn: createAccountFn, data: newAccount } = useFetch(createAccount);
 
   // Budget form
@@ -187,9 +189,24 @@ export default function OnboardingPage() {
                   </div>
                 </Field>
 
-                <Field label="Opening Balance (₹)" error={accForm.formState.errors.balance?.message}>
-                  <input {...accForm.register("balance")} type="number" placeholder="e.g. 25000"
-                    style={inputStyle}/>
+                <Field label="Currency" error={accForm.formState.errors.currency?.message}>
+                  <select {...accForm.register("currency")} style={{ ...inputStyle, appearance: "none", cursor: "pointer" }}>
+                    {SUPPORTED_CURRENCIES.map(c => (
+                      <option key={c.code} value={c.code} style={{ background: "#0c1a2e", color: "#f1f5f9" }}>
+                        {c.symbol} {c.code} - {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+
+                <Field label="Opening Balance" error={accForm.formState.errors.balance?.message}>
+                  <div style={{ position:"relative", display:"flex", alignItems:"center" }}>
+                    <span style={{ position:"absolute", left:12, color:"#94a3b8", fontSize:".85rem", fontWeight:600 }}>
+                      {SUPPORTED_CURRENCIES.find((c) => c.code === accForm.watch("currency"))?.symbol ?? "₹"}
+                    </span>
+                    <input {...accForm.register("balance")} type="number" placeholder="e.g. 25000"
+                      style={{...inputStyle, paddingLeft:28}}/>
+                  </div>
                 </Field>
               </div>
 
@@ -225,9 +242,14 @@ export default function OnboardingPage() {
                 </p>
               </div>
 
-              <Field label="Monthly Budget (₹)" error={budForm.formState.errors.amount?.message}>
-                <input {...budForm.register("amount")} type="number" placeholder="e.g. 40000"
-                  style={inputStyle}/>
+              <Field label="Monthly Budget" error={budForm.formState.errors.amount?.message}>
+                <div style={{ position:"relative", display:"flex", alignItems:"center" }}>
+                  <span style={{ position:"absolute", left:12, color:"#94a3b8", fontSize:".85rem", fontWeight:600 }}>
+                    {SUPPORTED_CURRENCIES.find((c) => c.code === accForm.watch("currency"))?.symbol ?? "₹"}
+                  </span>
+                  <input {...budForm.register("amount")} type="number" placeholder="e.g. 40000"
+                    style={{...inputStyle, paddingLeft:28}}/>
+                </div>
               </Field>
 
               <div style={{ display:"flex", gap:8, marginTop:22 }}>

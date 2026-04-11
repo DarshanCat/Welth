@@ -14,6 +14,9 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: "5mb",
     },
+    turbopack: {
+      root: process.cwd(),
+    },
   },
 
   eslint: {

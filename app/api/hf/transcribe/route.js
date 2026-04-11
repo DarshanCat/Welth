@@ -3,7 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 
 const HF_TOKEN = process.env.HF_TOKEN;
 // whisper-large-v3-turbo: fast + accurate + supports Indian English accents
-const WHISPER  = "https://api-inference.huggingface.co/models/openai/whisper-large-v3-turbo";
+const WHISPER  = "https://router.huggingface.co/hf-inference/models/openai/whisper-large-v3-turbo";
 
 export async function POST(req) {
   try {

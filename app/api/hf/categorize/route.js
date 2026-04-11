@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 
 const HF_TOKEN = process.env.HF_TOKEN;
-const BART     = "https://api-inference.huggingface.co/models/facebook/bart-large-mnli";
+const BART     = "https://router.huggingface.co/hf-inference/models/facebook/bart-large-mnli";
 
 const EXPENSE_LABELS = [
   "food and dining",

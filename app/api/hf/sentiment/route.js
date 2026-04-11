@@ -3,7 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/prisma";
 
 const HF_TOKEN = process.env.HF_TOKEN;
-const FINBERT  = "https://api-inference.huggingface.co/models/ProsusAI/finbert";
+const FINBERT  = "https://router.huggingface.co/hf-inference/models/ProsusAI/finbert";
 
 // ── Call FinBERT on a batch of sentences ──────────────────────────────────────
 async function classifySentiment(sentences) {

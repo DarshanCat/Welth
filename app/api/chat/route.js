@@ -2,6 +2,24 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/prisma";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import yahooFinance from "yahoo-finance2";
+
+// ── Fetch Portfolio Utilities ───────────────────────────────────────────────────
+async function fetchStockPrice(symbol, exchange = "NSE") {
+  try {
+    const ticker = exchange === "NSE" ? `${symbol}.NS` : exchange === "BSE" ? `${symbol}.BO` : symbol;
+    const quote = await yahooFinance.quote(ticker);
+    return quote ? quote.regularMarketPrice : null;
+  } catch { return null; }
+}
+
+async function fetchMFNav(schemeCode) {
+  try {
+    const res  = await fetch(`https://api.mfapi.in/mf/${schemeCode}`, { next: { revalidate: 3600 } });
+    const data = await res.json();
+    return data?.data?.[0] ? parseFloat(data.data[0].nav) : null;
+  } catch { return null; }
+}
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
@@ -17,31 +35,19 @@ const INCOME_CATEGORIES = ["Salary","Freelance","Investments","Business","Rental
 
 // ── Intent Parser ─────────────────────────────────────────────────────────────
 async function parseIntent(message) {
-  const today = new Date().toISOString().split("T")[0];
-  const prompt = `You are a financial assistant that classifies messages into intents.
-Today: ${today}. Message: "${message}"
-
-Reply ONLY with JSON, one of:
-1. Transaction: {"intent":"add_transaction","type":"EXPENSE"|"INCOME","amount":<number>,"category":"<one of: ${[...EXPENSE_CATEGORIES,...INCOME_CATEGORIES].join(",")}>","description":"<short>","date":"<YYYY-MM-DD>"}
-2. Goal: {"intent":"add_goal","targetAmount":<number>,"months":<number>}
-3. Investment query (stocks/mutual funds/SIP/portfolio/invest/returns/market): {"intent":"investment","query":"<cleaned>","riskProfile":"conservative"|"moderate"|"aggressive"}
-4. Budget query (budget/spending/where is my money): {"intent":"budget_analysis","query":"<cleaned>"}
-5. Tax query (tax/ITR/section 80C/deduction): {"intent":"tax_advice","query":"<cleaned>"}
-6. General finance: {"intent":"analysis","query":"<cleaned>"}
-
-Rules: amount = plain number, no symbols. Default to "analysis" if unsure.`;
-
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-    const res = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: "application/json", temperature: 0.1 }
+    const res = await fetch("http://127.0.0.1:8002/chat/intent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message })
     });
-    return JSON.parse(res.response.text());
+    if (res.ok) {
+       return await res.json();
+    }
   } catch (error) {
     console.error("Intent parsing failed:", error);
-    return { intent: "analysis", query: message };
   }
+  return { intent: "analysis", query: message };
 }
 
 // ── Load user financial context ───────────────────────────────────────────────
@@ -72,9 +78,31 @@ async function getUserContext(userId) {
   const topSpend = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 4)
     .map(([c, a]) => `${c}(${fmt(a)})`).join(", ");
 
-  const portfolioSummary = holdings.length > 0
-    ? holdings.map(h => `${h.symbol} (${h.quantity} units @ ${h.avgBuyPrice})`).join(", ")
-    : "No investments yet";
+  let portfolioSummary = "No investments yet";
+  if (holdings.length > 0) {
+    let totalInvested = 0;
+    let totalCurrentValue = 0;
+    
+    // Fetch live prices for holdings
+    const enriched = await Promise.all(holdings.map(async (h) => {
+      const livePrice = h.type === "MUTUAL_FUND" 
+        ? await fetchMFNav(h.symbol) 
+        : await fetchStockPrice(h.symbol, h.exchange || "NSE");
+      const currPrice = livePrice || Number(h.avgBuyPrice);
+      const invested = Number(h.quantity) * Number(h.avgBuyPrice);
+      const currVal = Number(h.quantity) * currPrice;
+      totalInvested += invested;
+      totalCurrentValue += currVal;
+      
+      const gain = currVal - invested;
+      const gainPct = invested > 0 ? (gain / invested) * 100 : 0;
+      return `${h.symbol} (${h.quantity} units, Current Value: ${fmt(currVal)}, PnL: ${gain >= 0 ? "+" : ""}${fmt(gain)} (${gainPct.toFixed(2)}%))`;
+    }));
+    
+    const overallGain = totalCurrentValue - totalInvested;
+    const overallGainPct = totalInvested > 0 ? (overallGain / totalInvested) * 100 : 0;
+    portfolioSummary = `Total Value: ${fmt(totalCurrentValue)} | Total PnL: ${overallGain >= 0 ? "+" : ""}${fmt(overallGain)} (${overallGainPct.toFixed(2)}%)\nIndividual Holdings: ` + enriched.join(", ");
+  }
 
   return {
     income, expense, savings, savingsRate,
@@ -95,6 +123,11 @@ async function getInvestmentAdvice(query, ctx, riskProfile = "moderate") {
   const risk = riskProfile || (ctx.savingsRate > 30 ? "moderate" : ctx.savingsRate > 15 ? "moderate" : "conservative");
 
   const prompt = `You are CA Arjun, a SEBI-registered investment advisor and Chartered Accountant in India. You give specific, actionable Indian investment advice.
+
+COMMUNICATION STYLE:
+- Speak naturally and engagingly, like a highly experienced human advisor having a 1-on-1 meeting.
+- Do NOT use typical AI cliches (e.g. "Certainly", "Here is an analysis", "As an AI").
+- Be empathetic, highly personalized, and sound completely human.
 
 CLIENT PROFILE:
 - Portfolio:         ${ctx.portfolioSummary}
@@ -140,16 +173,29 @@ Rules:
 - Always mention Groww, Zerodha, or Kuvera for how to start`;
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-    const res = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: "application/json", temperature: 0.2 }
-    });
-    const data = JSON.parse(res.response.text());
+    let res;
+    try {
+      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+      res = await model.generateContent({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: "application/json", temperature: 0.2 }
+      });
+    } catch (e) {
+      console.warn("2.5-flash failed, waiting 1s before falling back to 2.5-flash-lite:", e.message);
+      await new Promise(r => setTimeout(r, 1000));
+      const fallbackModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+      res = await fallbackModel.generateContent({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: "application/json", temperature: 0.2 }
+      });
+    }
+    const rawText = res.response.text();
+    const cleanText = rawText.replace(/```(?:json)?\n?/g, "").replace(/```/g, "").trim();
+    const data = JSON.parse(cleanText);
     return { type: "investment", data };
   } catch (error) {
     console.error("Investment advice failed:", error);
-    return { type: "text", text: "Unable to generate specific investment advice right now." };
+    return { type: "text", text: `Unable to generate specific investment advice right now. Error Details: ${error.message || "Unknown Error"}` };
   }
 }
 
@@ -157,6 +203,9 @@ Rules:
 async function getBudgetAnalysis(query, ctx, strictMode) {
   const strictRule = strictMode ? "\n\n*** STRICT MODE (DEVIL'S ADVOCATE) ***\nAct as a harsh, uncompromising financial coach. Strongly discourage any unnecessary or impulsive spending. Scrutinize all purchases against their budget and goals. Roast bad financial decisions and prioritize aggressive saving." : "";
   const prompt = `You are CA Arjun, a Chartered Accountant. Analyse spending and give specific advice.${strictRule}
+
+COMMUNICATION STYLE:
+Speak naturally, like a real human advisor sitting across the desk. Be warm, engaging, and direct. Do NOT sound like a typical AI or ChatGPT (avoid "As an AI", "Certainly!", "Here is a breakdown"). Make the user feel understood.
 
 CLIENT DATA (3 months):
 - Income: ${fmt(ctx.income)} | Expenses: ${fmt(ctx.expense)} | Savings: ${fmt(ctx.savings)} (${ctx.savingsRate}%)
@@ -180,6 +229,9 @@ End with "— CA Arjun"`;
 // ── Tax Advice ────────────────────────────────────────────────────────────────
 async function getTaxAdvice(query, ctx) {
   const prompt = `You are CA Arjun, a tax expert. Give Indian income tax advice.
+
+COMMUNICATION STYLE:
+Be human-like, conversational, and highly professional without being robotic. Avoid common AI phrasing and filler words.
 
 CLIENT DATA:
 - Monthly Income: ${fmt(ctx.monthlyIncome)} → Annual ~${fmt(ctx.monthlyIncome * 12)}
@@ -207,6 +259,9 @@ End with "— CA Arjun"`;
 async function getCAAdvice(query, ctx, strictMode) {
   const strictRule = strictMode ? "\n\n*** STRICT MODE (DEVIL'S ADVOCATE) ***\nAct as a harsh, uncompromising financial coach. Strongly discourage any unnecessary or impulsive spending. Scrutinize all purchases against their budget and goals. Roast bad financial decisions and prioritize aggressive saving." : "";
   const prompt = `You are CA Arjun, a senior Chartered Accountant and personal finance advisor.${strictRule}
+
+COMMUNICATION STYLE:
+Speak naturally, like a real human advisor having a conversation. Be engaging, empathetic, and human. STRICTLY avoid typical AI/ChatGPT cliches like "Certainly", "Here is an analysis", etc. Just jump straight into the warm, personalized advice.
 
 CLIENT DATA (3 months):
 - Income: ${fmt(ctx.income)} | Expenses: ${fmt(ctx.expense)} | Savings: ${fmt(ctx.savings)} (${ctx.savingsRate}%)

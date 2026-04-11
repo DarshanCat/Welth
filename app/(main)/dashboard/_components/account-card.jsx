@@ -1,11 +1,11 @@
 "use client";
 
-import { ArrowUpRight, ArrowDownRight, Wallet } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, Wallet, Trash2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useEffect } from "react";
 import useFetch from "@/hooks/use-fetch";
 import Link from "next/link";
-import { updateDefaultAccount } from "@/actions/account";
+import { updateDefaultAccount, deleteAccount } from "@/actions/account";
 import { toast } from "sonner";
 
 const fmt = (n) =>
@@ -15,11 +15,19 @@ export function AccountCard({ account }) {
   const { name, type, balance, id, isDefault } = account;
 
   const { loading, fn: updateDefaultFn, data: updatedAccount, error } = useFetch(updateDefaultAccount);
+  const { loading: deleteLoading, fn: deleteAccountFn, data: deletedAccount, error: deleteError } = useFetch(deleteAccount);
 
   const handleDefaultChange = async (e) => {
     e.preventDefault();
     if (isDefault) { toast.warning("Need at least 1 default account"); return; }
     await updateDefaultFn(id);
+  };
+
+  const handleDelete = async (e) => {
+    e.preventDefault();
+    if (window.confirm(`Are you sure you want to delete "${name}"? This action cannot be undone and will delete all associated transactions.`)) {
+      await deleteAccountFn(id);
+    }
   };
 
   useEffect(() => {
@@ -29,6 +37,14 @@ export function AccountCard({ account }) {
   useEffect(() => {
     if (error) toast.error(error.message || "Failed to update");
   }, [error]);
+
+  useEffect(() => {
+    if (deletedAccount?.success) toast.success("Account deleted successfully");
+  }, [deletedAccount]);
+
+  useEffect(() => {
+    if (deleteError) toast.error(deleteError.message || "Failed to delete account");
+  }, [deleteError]);
 
   const typeColor = type === "SAVINGS" ? "#34d399" : "#60a5fa";
 
@@ -61,8 +77,22 @@ export function AccountCard({ account }) {
               </p>
             </div>
           </div>
-          <div onClick={e => e.preventDefault()}>
-            <Switch checked={isDefault} onClick={handleDefaultChange} disabled={loading}/>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div onClick={e => e.preventDefault()} style={{ display: "flex", alignItems: "center" }}>
+              <Switch checked={isDefault} onClick={handleDefaultChange} disabled={loading}/>
+            </div>
+            <button 
+              onClick={handleDelete} 
+              disabled={deleteLoading} 
+              style={{
+                background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.2)",
+                borderRadius: "6px", cursor: "pointer", display: "flex", padding: "5px",
+                alignItems: "center", justifyContent: "center", opacity: deleteLoading ? 0.5 : 1
+              }}
+              title="Delete Account"
+            >
+              <Trash2 size={13} style={{ color: "#ef4444" }} />
+            </button>
           </div>
         </div>
 
